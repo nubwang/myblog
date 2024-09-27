@@ -1,0 +1,124 @@
+2020-03-13 15:41:06: ok
+2020-03-13 15:41:06: ok
+2020-03-13 15:41:06: ok
+2020-03-13 15:41:06: ok
+2020-03-13 15:41:06: ok
+2020-03-13 15:41:06: ok
+2020-03-13 15:41:06: ok
+2020-03-13 15:41:06: ok
+2020-03-13 15:41:17: UnauthorizedError: No authorization token was found
+    at middleware (/Users/ericxie/录课专用/nodejs/server/node_modules/express-jwt/lib/index.js:76:21)
+    at /Users/ericxie/录课专用/nodejs/server/node_modules/express-unless/index.js:47:5
+    at Layer.handle [as handle_request] (/Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/index.js:317:13)
+    at /Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/index.js:284:7
+    at Function.process_params (/Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/index.js:335:12)
+    at next (/Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/index.js:275:10)
+    at SendStream.error (/Users/ericxie/录课专用/nodejs/server/node_modules/serve-static/index.js:121:7)
+    at SendStream.emit (events.js:219:5)
+    at SendStream.error (/Users/ericxie/录课专用/nodejs/server/node_modules/send/index.js:270:17) {
+  name: 'UnauthorizedError',
+  message: 'No authorization token was found',
+  code: 'credentials_required',
+  status: 401,
+  inner: { message: 'No authorization token was found' }
+}
+2020-03-13 15:41:17: [0mGET / [33m401 [0m7.239 ms - 37[0m
+2020-03-13 15:41:17: UnauthorizedError: No authorization token was found
+    at middleware (/Users/ericxie/录课专用/nodejs/server/node_modules/express-jwt/lib/index.js:76:21)
+    at /Users/ericxie/录课专用/nodejs/server/node_modules/express-unless/index.js:47:5
+    at Layer.handle [as handle_request] (/Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/index.js:317:13)
+    at /Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/index.js:284:7
+    at Function.process_params (/Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/index.js:335:12)
+    at next (/Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/index.js:275:10)
+    at SendStream.error (/Users/ericxie/录课专用/nodejs/server/node_modules/serve-static/index.js:121:7)
+    at SendStream.emit (events.js:219:5)
+    at SendStream.error (/Users/ericxie/录课专用/nodejs/server/node_modules/send/index.js:270:17) {
+  name: 'UnauthorizedError',
+  message: 'No authorization token was found',
+  code: 'credentials_required',
+  status: 401,
+  inner: { message: 'No authorization token was found' }
+}
+2020-03-13 15:41:17: [0mGET /favicon.ico [33m401 [0m1.138 ms - 37[0m
+2020-03-13 15:42:49: ok
+2020-03-13 15:42:49: ok
+2020-03-13 15:42:49: ok
+2020-03-13 15:42:49: ok
+2020-03-13 15:42:49: ok
+2020-03-13 15:42:49: ok
+2020-03-13 15:42:49: ok
+2020-03-13 15:42:49: ok
+2020-03-13 15:44:55: ok
+2020-03-13 15:44:55: ok
+2020-03-13 15:44:55: ok
+2020-03-13 15:44:55: ok
+2020-03-13 15:44:55: ok
+2020-03-13 15:44:55: ok
+2020-03-13 15:44:55: ok
+2020-03-13 15:44:55: ok
+2020-03-13 15:45:52: UnauthorizedError: No authorization token was found
+    at middleware (/Users/ericxie/录课专用/nodejs/server/node_modules/express-jwt/lib/index.js:76:21)
+    at /Users/ericxie/录课专用/nodejs/server/node_modules/express-unless/index.js:47:5
+    at Layer.handle [as handle_request] (/Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/index.js:317:13)
+    at /Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/index.js:284:7
+    at Function.process_params (/Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/index.js:335:12)
+    at next (/Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/index.js:275:10)
+    at SendStream.error (/Users/ericxie/录课专用/nodejs/server/node_modules/serve-static/index.js:121:7)
+    at SendStream.emit (events.js:219:5)
+    at SendStream.error (/Users/ericxie/录课专用/nodejs/server/node_modules/send/index.js:270:17) {
+  name: 'UnauthorizedError',
+  message: 'No authorization token was found',
+  code: 'credentials_required',
+  status: 401,
+  inner: { message: 'No authorization token was found' }
+}
+2020-03-13 15:45:52: [0mGET / [33m401 [0m6.872 ms - 37[0m
+2020-03-13 15:45:52: UnauthorizedError: No authorization token was found
+    at middleware (/Users/ericxie/录课专用/nodejs/server/node_modules/express-jwt/lib/index.js:76:21)
+    at /Users/ericxie/录课专用/nodejs/server/node_modules/express-unless/index.js:47:5
+    at Layer.handle [as handle_request] (/Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/index.js:317:13)
+    at /Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/index.js:284:7
+    at Function.process_params (/Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/index.js:335:12)
+    at next (/Users/ericxie/录课专用/nodejs/server/node_modules/express/lib/router/index.js:275:10)
+    at SendStream.error (/Users/ericxie/录课专用/nodejs/server/node_modules/serve-static/index.js:121:7)
+    at SendStream.emit (events.js:219:5)
+    at SendStream.error (/Users/ericxie/录课专用/nodejs/server/node_modules/send/index.js:270:17) {
+  name: 'UnauthorizedError',
+  message: 'No authorization token was found',
+  code: 'credentials_required',
+  status: 401,
+  inner: { message: 'No authorization token was found' }
+}
+2020-03-13 15:45:52: [0mGET /favicon.ico [33m401 [0m1.501 ms - 37[0m
+2020-03-13 15:46:24: ok
+2020-03-13 15:46:24: ok
+2020-03-13 15:46:24: ok
+2020-03-13 15:46:24: ok
+2020-03-13 15:46:24: ok
+2020-03-13 15:46:24: ok
+2020-03-13 15:46:25: ok
+2020-03-13 15:46:25: ok
+2020-03-13 15:46:26: ok
+2020-03-13 15:46:26: ok
+2020-03-13 15:46:27: ok
+2020-03-13 15:46:27: ok
+2020-03-13 15:46:27: ok
+2020-03-13 15:46:27: ok
+2020-03-13 15:46:27: ok
+2020-03-13 15:46:27: ok
+2020-03-13 15:46:33: ok
+2020-03-13 15:46:33: ok
+2020-03-13 15:46:33: ok
+2020-03-13 15:46:33: ok
+2020-03-13 15:46:33: ok
+2020-03-13 15:46:33: ok
+2020-03-13 15:46:33: ok
+2020-03-13 15:46:34: ok
+2020-03-13 15:46:34: production
+2020-03-13 15:46:34: [0mGET / [33m401 [0m4.903 ms - 37[0m
+2020-03-13 15:46:34: production
+2020-03-13 15:46:34: [0mGET /favicon.ico [33m401 [0m1.097 ms - 37[0m
