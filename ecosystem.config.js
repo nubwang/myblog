@@ -23,18 +23,18 @@ module.exports = {
     }
   }],
 
-  deploy : {
-    production : {
-      user : 'root',
-      host : '172.16.11.130',
-      ref  : 'origin/master',
-      repo : 'git@github.com:xd-eric/myblog.git',
-      path : '/usr/local/myProject',
-      ssh_options: "StrictHostKeyChecking=no",
-      'post-deploy' : 'npm install && pm2 reload ecosystem.config.js --env production',
-      "env": {
-        "NODE_ENV": "production"
-      }
-    }
-  }
+  // deploy : {
+  //   production : {
+  //     user : 'root',
+  //     host : '172.16.11.130',
+  //     ref  : 'origin/master',
+  //     repo : 'git@github.com:xd-eric/myblog.git',
+  //     path : '/usr/local/myProject',
+  //     ssh_options: "StrictHostKeyChecking=no",
+  //     'post-deploy' : 'npm install && pm2 reload ecosystem.config.js --env production',
+  //     "env": {
+  //       "NODE_ENV": "production"
+  //     }
+  //   }
+  // }
 };
