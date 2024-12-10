@@ -14,7 +14,7 @@ dbOption = {
   host: '127.0.0.1',
   user: 'root',
   password: '8384285xyz',
-  database: 'product_list'
+  database: 'herbs_list'
 }
 
 module.exports = dbOption

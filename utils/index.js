@@ -10,6 +10,9 @@ function md5(s){
 
 let upload = multer({
     storage: multer.diskStorage({
+      limits: {
+        fileSize: 1024 * 1024 * 10, // 限制文件大小为 10MB
+      },
         // 设置文件存储位置
       destination: function (req, file, cb) {
         let date = new Date()

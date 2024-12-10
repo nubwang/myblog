@@ -1,8 +1,6 @@
 var express = require('express');
 var router = express.Router();
-const numCPUs = require('os').cpus().length; 
 const querySql = require('../db/index')
-console.log(numCPUs,'numCPUs')
 /* 新增博客接口 */
 router.post('/add', async(req, res, next) => {
   let {title,content} = req.body
