@@ -1,21 +1,35 @@
 var express = require('express');
 var router = express.Router();
 const querySql = require('../db/index')
-/* 新增博客接口 */
-router.post('/add', async(req, res, next) => {
-  let {title,content} = req.body
-  console.log(title,content,'title,content')
-  let {username} = req.user
+//新增中药列表接口
+router.post("/add",async(req,res,next)=>{
+  let data = req.body;
   try {
-    let result = await querySql('select id from users where username = ?',[username])
-    let user_id = result[0].id
-    await querySql('insert into article(title,content,user_id,create_time) values(?,?,?,NOW())',[title,content,user_id])
+    if(!(data.name&&data.mature&&data.FinishedHerbs&&data.identify&&data.processingMethod&&data.AliasFunction&&data.DistributionCharacteristics&&data.PriceRange&&data.prescriptcs)){
+      res.send({code:0,msg:'带*是必填项，请填写',data:null})
+    }
+    await querySql('insert into herbs_list(name,seedling,mature,partUsed,FinishedHerbs,identify,processingMethod,AliasFunction,DistributionCharacteristics,PriceRange,prescriptcs) values(?,?,?,?,?,?,?,?,?,?,?)',[data.name,data.seedling,data.mature,data.partUsed,data.FinishedHerbs,data.identify,data.processingMethod,data.AliasFunction,data.DistributionCharacteristics,data.PriceRange,JSON.stringify(data.prescriptcs)])
     res.send({code:0,msg:'新增成功',data:null})
   }catch(e){
     console.log(e)
     next(e)
   } 
-});
+})
+/* 新增博客接口 */
+// router.post('/add', async(req, res, next) => {
+//   let {title,content} = req.body
+//   console.log(title,content,'title,content')
+//   let {username} = req.user
+//   try {
+//     let result = await querySql('select id from users where username = ?',[username])
+//     let user_id = result[0].id
+//     await querySql('insert into article(title,content,user_id,create_time) values(?,?,?,NOW())',[title,content,user_id])
+//     res.send({code:0,msg:'新增成功',data:null})
+//   }catch(e){
+//     console.log(e)
+//     next(e)
+//   } 
+// });
 
 // 获取全部博客列表接口
 router.get('/allList', async(req, res, next) => {
