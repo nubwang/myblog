@@ -8,13 +8,13 @@ const jwt = require('jsonwebtoken')
 
 /* 注册接口 */
 router.post('/register', async(req, res, next) => {
-  let {username,password} = req.body
+  let {username,password,head_img} = req.body
   try {
     let user = await querySql('select * from users where username = ?',[username])
     if(!user || user.length === 0){
       password = md5(`${password}${PWD_SALT}`)
-      await querySql('insert into users(username,password) value(?,?)',[username,password])
-      res.send({code:0,msg:'注册成功'})
+      await querySql('insert into users(username,password,head_img) value(?,?,?)',[username,password,head_img])
+      res.send({code:200,msg:'注册成功'})
     }else{
       res.send({code:-1,msg:'该账号已注册'})
     }
@@ -24,7 +24,7 @@ router.post('/register', async(req, res, next) => {
   } 
 });
 
-// 登录接口
+// 登录接口 
 router.post('/login',async(req,res,next) => {
   let {username,password} = req.body
   try {
@@ -38,7 +38,7 @@ router.post('/login',async(req,res,next) => {
           res.send({code:-1,msg:'账号或者密码不正确'})
         }else{
           let token = jwt.sign({username},PRIVATE_KEY,{expiresIn:EXPIRESD})
-          res.send({code:0,msg:'登录成功',token:token})
+          res.send({code:200,msg:'登录成功',token:token})
         }      
       }
   }catch(e){
@@ -51,8 +51,8 @@ router.post('/login',async(req,res,next) => {
 router.get('/info',async(req,res,next) => {
   let {username} = req.user
   try {
-    let userinfo = await querySql('select nickname,head_img from users where username = ?',[username])
-    res.send({code:0,msg:'成功',data:userinfo[0]})
+    let userinfo = await querySql('select id,username,nickname,head_img from users where username = ?',[username])
+    res.send({code:200,msg:'成功',data:userinfo[0]})
   }catch(e){
     console.log(e)
     next(e)
@@ -64,7 +64,7 @@ router.post('/upload',upload.single('head_img'),async(req,res,next) => {
   console.log(req.file)
   let imgPath = req.file.path.split('public')[1]
   let imgUrl = 'http://127.0.0.1:3000'+imgPath
-  res.send({code:0,msg:'上传成功',data:imgUrl})
+  res.send({code:200,msg:'上传成功',data:imgUrl})
 })
 
 //用户信息更新接口
@@ -72,9 +72,9 @@ router.post('/updateUser',async(req,res,next) => {
   let {nickname,head_img} = req.body
   let {username} = req.user
   try {
-    let result = await querySql('update users set nickname = ?,head_img = ? where username = ?',[nickname,head_img,username])
+    let result = await querySql('update users set head_img = ?, nickname = ? where username = ?',[head_img,nickname,username])
     console.log(result)
-    res.send({code:0,msg:'更新成功',data:null})
+    res.send({code:200,msg:'更新成功',data:null})
   }catch(e){
     console.log(e)
     next(e)

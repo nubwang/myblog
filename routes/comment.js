@@ -13,7 +13,7 @@ router.post('/public',async(req,res,next) => {
     let {id:user_id,head_img,nickname} = user[0]
     let sql = 'insert into comment(user_id,article_id,cm_content,nickname,head_img,create_time) values(?,?,?,?,?,NOW())'
     let result = await querySql(sql,[user_id,article_id,content,nickname,head_img])
-    res.send({code:0,msg:'发表成功',data:null})
+    res.send({code:200,msg:'发表成功',data:null})
   }catch(e){
     console.log(e)
     next(e)
@@ -27,7 +27,7 @@ router.get('/list',async(req,res,next) => {
     try {
       let sql = 'select id,head_img,nickname,cm_content,DATE_FORMAT(create_time,"%Y-%m-%d %H:%i:%s") AS create_time from comment where article_id = ?'
       let result = await querySql(sql,[article_id])
-      res.send({code:0,msg:'成功',data:result})
+      res.send({code:200,msg:'成功',data:result})
     }catch(e){
       console.log(e)
       next(e)

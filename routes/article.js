@@ -5,16 +5,38 @@ const querySql = require('../db/index')
 router.post("/add",async(req,res,next)=>{
   let data = req.body;
   try {
-    if(!(data.name&&data.mature&&data.FinishedHerbs&&data.identify&&data.processingMethod&&data.AliasFunction&&data.DistributionCharacteristics&&data.PriceRange&&data.prescriptcs)){
+    console.log(data,'datadatadatadatadata')
+    if(!(data.name&&data.seedling&&data.mature&&data.partUsed&&data.FinishedHerbs&&data.ProtectPlants&&data.RiskWarning&&data.identify&&data.processingMethod&&data.AliasFunction&&data.DistributionCharacteristics&&data.PriceRange&&data.prescriptcs)){
       res.send({code:0,msg:'带*是必填项，请填写',data:null})
+    }else{
+      await querySql('insert into herbs_list(name,seedling,mature,partUsed,FinishedHerbs,ProtectPlants,RiskWarning,identify,processingMethod,AliasFunction,DistributionCharacteristics,PriceRange,prescriptcs) values(?,?,?,?,?,?,?,?,?,?,?,?,?)',[data.name,data.seedling,data.mature,data.partUsed,data.FinishedHerbs,data.ProtectPlants,data.RiskWarning,data.identify,data.processingMethod,data.AliasFunction,data.DistributionCharacteristics,data.PriceRange,JSON.stringify(data.prescriptcs)])
+      res.send({code:200,msg:'新增成功',data:null})
     }
-    await querySql('insert into herbs_list(name,seedling,mature,partUsed,FinishedHerbs,identify,processingMethod,AliasFunction,DistributionCharacteristics,PriceRange,prescriptcs) values(?,?,?,?,?,?,?,?,?,?,?)',[data.name,data.seedling,data.mature,data.partUsed,data.FinishedHerbs,data.identify,data.processingMethod,data.AliasFunction,data.DistributionCharacteristics,data.PriceRange,JSON.stringify(data.prescriptcs)])
-    res.send({code:0,msg:'新增成功',data:null})
   }catch(e){
-    console.log(e)
-    next(e)
+    console.log(e,'err--------11111')
+    if(e.errno == 1062){
+      res.send({code:e.errno,msg: "这个植物药材已经上传过了"})
+    }else{
+      res.send({code:e.errno,msg: e.sqlMessage})
+    }
+    
   } 
 })
+
+//搜索草药详情
+router.get("/list",async(req,res,next)=>{
+  let data = req.body;
+  try {
+    if(!data.pageSize) data.pageSize = 20;
+    if(!data.page || data.page != 0) data.page = 1;
+    const offset = (data.page - 1) * data.pageSize;
+    let list = await querySql(`SELECT name,FinishedHerbs,processingMethod,AliasFunction FROM herbs_list LIMIT ${data.pageSize} OFFSET ${offset}`)
+    res.send({code:200,data:list})
+  }catch(e){
+    res.send({code:e.errno,msg: e.sqlMessage})
+  } 
+})
+
 /* 新增博客接口 */
 // router.post('/add', async(req, res, next) => {
 //   let {title,content} = req.body
@@ -37,7 +59,7 @@ router.get('/allList', async(req, res, next) => {
     // let sql = 'select id,title,content,DATE_FORMAT(create_time,"%Y-%m-%d %H:%i:%s") AS create_time from article'
     // let result = await querySql(sql)
     let data = await querySql('select count(*) count from users where id = 1')
-    res.send({code:0,msg:'获取成功',data:data})
+    res.send({code:200,msg:'获取成功',data:data})
   }catch(e){
     console.log(e)
     next(e)
@@ -53,7 +75,7 @@ router.get('/myList', async(req, res, next) => {
     let user_id = user[0].id
     let sql = 'select id,title,content,DATE_FORMAT(create_time,"%Y-%m-%d %H:%i:%s") AS create_time from article where user_id = ?'
     let result = await querySql(sql,[user_id])
-    res.send({code:0,msg:'获取成功',data:result})
+    res.send({code:200,msg:'获取成功',data:result})
   }catch(e){
     console.log(e)
     next(e)
@@ -61,17 +83,17 @@ router.get('/myList', async(req, res, next) => {
 });
 
 // 获取博客详情接口
-router.get('/detail', async(req, res, next) => {
-  let article_id = req.query.article_id
-  try {
-    let sql = 'select id,title,content,DATE_FORMAT(create_time,"%Y-%m-%d %H:%i:%s") AS create_time from article where id = ?'
-    let result = await querySql(sql,[article_id])
-    res.send({code:0,msg:'获取成功',data:result[0]})
-  }catch(e){
-    console.log(e)
-    next(e)
-  } 
-});
+// router.get('/detail', async(req, res, next) => {
+//   let article_id = req.query.article_id
+//   try {
+//     let sql = 'select id,title,content,DATE_FORMAT(create_time,"%Y-%m-%d %H:%i:%s") AS create_time from article where id = ?'
+//     let result = await querySql(sql,[article_id])
+//     res.send({code:200,msg:'获取成功',data:result[0]})
+//   }catch(e){
+//     console.log(e)
+//     next(e)
+//   } 
+// });
 
 // 更新博客接口
 router.post('/update', async(req, res, next) => {
@@ -83,7 +105,7 @@ router.post('/update', async(req, res, next) => {
     let user_id = user[0].id
     let sql = 'update article set title = ?,content = ? where id = ? and user_id = ?'
     let result = await querySql(sql,[title,content,article_id,user_id])
-    res.send({code:0,msg:'更新成功',data:null})
+    res.send({code:200,msg:'更新成功',data:null})
   }catch(e){
     console.log(e)
     next(e)
@@ -100,7 +122,7 @@ router.post('/delete', async(req, res, next) => {
     let user_id = user[0].id
     let sql = 'delete from article where id = ? and user_id = ?'
     let result = await querySql(sql,[article_id,user_id])
-    res.send({code:0,msg:'删除成功',data:null})
+    res.send({code:200,msg:'删除成功',data:null})
   }catch(e){
     console.log(e)
     next(e)
