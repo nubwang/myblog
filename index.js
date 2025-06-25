@@ -6,12 +6,13 @@ var logger = require('morgan');
 const cors = require('cors')
 const expressJWT = require('express-jwt')
 const {PRIVATE_KEY} = require('./utils/constant')
-// process.env.PORT="10892";
+// process.env.PORT="10892"; //addFriend
 var artRouter = require('./routes/article');
 var usersRouter = require('./routes/users');
 var commentRouter = require('./routes/comment');
 var uploadCOS = require('./routes/uploadCOS');
-var getA = require('./routes/getA');
+// var getA = require('./routes/getA');
+var friends = require('./routes/friends');
 
 var app = express();
 console.debug(process.platform,'env')
@@ -33,9 +34,11 @@ app.use(expressJWT({
 
 app.use('/api/article', artRouter);
 app.use('/api/user', usersRouter);
-app.use('/api/comment',commentRouter)
-app.use('/api/uploadCOS',uploadCOS)
-app.use('/api/getA',getA)
+app.use('/api/comment',commentRouter);
+app.use('/api/uploadCOS',uploadCOS);
+// app.use('/api/getA',getA);
+app.use('/api/friends',friends);
+
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {

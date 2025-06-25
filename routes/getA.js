@@ -2,9 +2,9 @@ var express = require('express');
 var router = express.Router();
 const querySql = require('../db/index');
 var OpenAI  = require('openai');
-const dotenv = require('dotenv');
+// const dotenv = require('dotenv');
 const path = require('path');
-dotenv.config();
+// dotenv.config();
 
 const openai = new OpenAI({
   baseURL: process.env.baseURL,
