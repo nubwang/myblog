@@ -4,16 +4,40 @@ const querySql = require('../db/index')
 const {PWD_SALT,PRIVATE_KEY,EXPIRESD} = require('../utils/constant')
 const {md5,upload} = require('../utils/index')
 const jwt = require('jsonwebtoken')
-
-
+const redis = require('../db/redis');
+const crypto = require('crypto');
+//刷新token
+router.post('/refresh', async (req, res) => {
+  const { refreshToken } = req.cookies;
+  const { username } = req.body;
+  if (!refreshToken) return res.status(401).send('Unauthorized');
+ 
+  // 验证 Refresh Token 哈希值
+  const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+  const isValid = await redis.exists(tokenHash);
+  if (!isValid) return res.status(401).send('Invalid Refresh Token');
+ 
+  // 签发新 Token（同时使旧 Refresh Token 失效）
+  const newAccessToken = jwt.sign({ username }, PRIVATE_KEY, { expiresIn: '15m' });
+  const newRefreshToken = jwt.sign({}, PRIVATE_KEY, { expiresIn: '7d' });
+ 
+  // 更新 Redis 中的哈希值
+  const newTokenHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
+  await redis.del(tokenHash); // 删除旧哈希
+  await redis.setEx(newTokenHash, 7 * 24 * 60 * 60, 'valid'); // 存储新哈希
+ 
+  // 返回新 Token
+  res.cookie('refreshToken', newRefreshToken, { httpOnly: true, secure: true });
+  res.json({ accessToken: newAccessToken });
+});
 /* 注册接口 */
 router.post('/register', async(req, res, next) => {
-  let {username,password,head_img} = req.body
+  let {username,password,head_img,nickname} = req.body
   try {
     let user = await querySql('select * from users where username = ?',[username])
     if(!user || user.length === 0){
       password = md5(`${password}${PWD_SALT}`)
-      await querySql('insert into users(username,password,head_img) value(?,?,?)',[username,password,head_img])
+      await querySql('insert into users(username,password,head_img,nickname) value(?,?,?,?)',[username,password,head_img,nickname])
       res.send({code:200,msg:'注册成功'})
     }else{
       res.send({code:-1,msg:'该账号已注册'})
@@ -47,12 +71,27 @@ router.post('/login',async(req,res,next) => {
   } 
 })
 
-//获取用户信息接口
-router.get('/info',async(req,res,next) => {
+//获取本人用户信息接口
+router.get('/info_self',async(req,res,next) => {
   let {username} = req.user
+  console.log(username,'username')
   try {
     let userinfo = await querySql('select id,username,nickname,head_img from users where username = ?',[username])
     res.send({code:200,msg:'成功',data:userinfo[0]})
+  }catch(e){
+    console.log(e)
+    next(e)
+  } 
+})
+
+//获取他人用户信息接口
+router.get('/info_other',async(req,res,next) => {
+  let { id } = req.query
+  console.log(id,'id')
+  try {
+    let userinfo = await querySql('select id,username,nickname,head_img from users where id = ?',[id])
+    console.log(userinfo,'userinfo')
+    res.send({code:200,msg:'成功',data:userinfo.length?userinfo[0]:null})
   }catch(e){
     console.log(e)
     next(e)

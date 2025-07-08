@@ -4,12 +4,14 @@ const querySql = require('../db/index')
 router.get('/test', (req, res) => {
   res.send('Friends route is working');
 });
+//发送好友
 router.post('/add',async(req,res,next) => {
-  const { userId, friendId } = req.body;
-  console.log(userId, friendId,'userId, friendId')
+  const { userId, friendId, notes } = req.body;
+  console.log(userId, friendId,notes,'userId, friendId')
   try {
-    const [result] = await querySql( 'INSERT INTO friendships (user_id, friend_id) VALUES (?, ?)', [userId, friendId] );
+    const result = await querySql( 'INSERT INTO friendships (user_id, friend_id, notes) VALUES (?, ?, ?)', [userId, friendId, notes?notes:"[]"] );
     // res.send({code:200,msg:'发送成功',data: {id: result.insertId}})
+    console.log(result,'resultresultresult')
     res.status(200).json({ message: 'Friend request sent successfully', data:{id: result.insertId} });
   }catch(e){
     // console.error('Error sending friend request:', e);
@@ -77,15 +79,15 @@ router.get('/:userId', async (req, res,next) => {
     // next(error)
   }
 });
-
+//获取好友请求列表
 router.get('/:userId/pending', async (req, res,next) => {
   const { userId } = req.params;
   console.log(userId,'userId')
 
   try {
-    const [rows] = await querySql( `SELECT u.id, u.username, u.head_img FROM users u JOIN friendships f ON (u.id = f.user_id AND f.friend_id = ? AND f.status = 'pending')`, [userId] );
+    const rows = await querySql( `SELECT u.id, u.username, u.head_img FROM users u JOIN friendships f ON (u.id = f.user_id AND f.friend_id = ? AND f.status = 'pending')`, [userId] );
     console.log(rows,'rows')
-    res.json(rows);
+    res.json({message: rows});
   } catch (error) {
     console.error('Error fetching friends pending:', error);
     res.status(500).json({ message: 'Failed to fetch friends pending' });
