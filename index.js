@@ -29,7 +29,15 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(expressJWT({
   secret: PRIVATE_KEY   
 }).unless({
-  path: ['/api/user/register','/api/article/list','/api/user/login','/api/uploadCOS/upload','/api/user/upload','/api/article/allList','/api/article/detail','/api/comment/list']  //白名单,除了这里写的地址，其他的URL都需要验证
+  path: [
+    '/api/user/register',
+    '/api/article/list',
+    '/api/user/login',
+    '/api/uploadCOS/upload',
+    '/api/user/upload',
+    '/api/article/allList',
+    '/api/article/detail',
+    '/api/comment/list']  //白名单,除了这里写的地址，其他的URL都需要验证
 }));
 
 app.use('/api/article', artRouter);

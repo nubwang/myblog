@@ -2,7 +2,7 @@ var express = require('express');
 var router = express.Router();
 const querySql = require('../db/index')
 router.get('/test', (req, res) => {
-  res.send('Friends route is working');
+  res.send({code:401,msg:'测试token过期接口'})
 });
 //发送好友
 router.post('/add',async(req,res,next) => {
