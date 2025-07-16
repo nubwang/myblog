@@ -1,9 +1,7 @@
-// utils/redis.js
-const redis = require('redis');
-const { promisify } = require('util');
+const { createClient } = require('redis');
 
 // Redis 客户端配置
-const redisClient = redis.createClient({
+const redisClient = createClient({
   url: 'redis://localhost:6379', // 默认 Redis 地址
   // 如果需要密码：
   // password: 'your_password'
@@ -14,12 +12,7 @@ redisClient.on('error', (err) => {
   console.error('Redis connection error:', err);
 });
 
-// 封装异步方法
-const getAsync = promisify(redisClient.get).bind(redisClient);
-const setExAsync = promisify(redisClient.setEx).bind(redisClient);
-const delAsync = promisify(redisClient.del).bind(redisClient);
-
-// 导出方法
+// 导出方法（直接使用 Redis 客户端的 Promise API）
 module.exports = {
   // 连接 Redis（在应用启动时调用）
   connect: async () => {
@@ -29,17 +22,17 @@ module.exports = {
 
   // 获取值
   get: async (key) => {
-    return await getAsync(key);
+    return await redisClient.get(key);
   },
 
   // 设置值（带过期时间，单位：秒）
   setEx: async (key, value, expireSeconds) => {
-    await setExAsync(key, expireSeconds, value);
+    await redisClient.setEx(key, expireSeconds, value);
   },
 
   // 删除键
   del: async (key) => {
-    await delAsync(key);
+    await redisClient.del(key);
   },
 
   // 获取 Redis 客户端（用于复杂操作）

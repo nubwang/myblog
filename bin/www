@@ -7,8 +7,18 @@
 var app = require('../index');
 var debug = require('debug')('server:server');
 var http = require('http');
+const SocketService = require('../utils/socket');
 const cluster = require('cluster');  
 const numCPUs = require('os').cpus().length; 
+const redis = require('../db/redis');
+(async () => {
+  try {
+    await redis.connect();
+    console.log('Redis 连接成功');
+  } catch (err) {
+    console.error('Redis 连接失败:', err);
+  }
+})();
 
 /**
  * Get port from environment and store in Express.
@@ -17,7 +27,7 @@ const numCPUs = require('os').cpus().length;
 var port = normalizePort(process.env.PORT || '3000');
 app.set('port', port);
 const server = http.createServer(app);
-
+SocketService.init(server);
 if (cluster.isMaster) {  
   console.log(`主进程 ${process.pid} 正在运行`);  
   

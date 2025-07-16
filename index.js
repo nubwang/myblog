@@ -14,6 +14,7 @@ var uploadCOS = require('./routes/uploadCOS');
 // var getA = require('./routes/getA');
 var friends = require('./routes/friends');
 
+
 var app = express();
 console.debug(process.platform,'env')
 // view engine setup
