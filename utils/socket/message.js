@@ -12,6 +12,20 @@ class SocketMessageHandler {
   bindEvents(socket) {
     const { userId } = socket;
     // console.log(userId,"userId, toUserId, message")
+    //好友请求
+    socket.on('addFriend', async ({ userId, friendId,notes }) => {
+        const result = await querySql( 'INSERT INTO friendships (user_id, friend_id, notes) VALUES (?, ?, ?)', [userId, friendId, notes?notes:"[]"] );
+        let params = {
+          from: userId,
+          notes,
+        };
+        if (result.affectedRows > 0) {
+          console.log('Friend request sent successfully');
+          this.io.to(friendId).emit('privateMessage', { code: 200,data: params, message: '好友请求已发送' });
+        } else {
+          this.io.to(friendId).emit('privateMessage', { code: 500, message: '好友请求失败' });
+        }
+    });
 
     // 私聊
     socket.on('privateMessage', async ({ toUserId, message }) => {

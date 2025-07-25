@@ -15,13 +15,11 @@ class SocketAuth {
       return next(new Error('Authentication error: Token missing'));
     }
     try {
-      console.log('1111')
       const decoded = jwt.verify(token, PRIVATE_KEY);
       if (!decoded || !decoded.id) {
         return next(new Error('Authentication error: Token payload missing user id'));
       }
       socket.userId = decoded.id; // 挂载 userId 到 socket 对象
-      console.log(decoded,'decoded')
       next();
     } catch (err) {
       if (process.env.NODE_ENV === 'development') {
@@ -29,7 +27,7 @@ class SocketAuth {
       } else {
         console.log('Authentication error occurred');
       }
-      next(new Error('Authentication error: Invalid token'));
+      next(new Error(JSON.stringify({code: 401, msg: 'token验证失败'})));
     }
   }
 }

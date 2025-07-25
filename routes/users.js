@@ -7,29 +7,29 @@ const jwt = require('jsonwebtoken')
 const redis = require('../db/redis');
 const crypto = require('crypto');
 //刷新token
-// router.post('/refresh', async (req, res) => {
-//   const { refreshToken } = req.cookies;
-//   const { username } = req.body;
-//   if (!refreshToken) return res.status(401).send('Unauthorized');
+router.post('/refresh', async (req, res) => {
+  const { refreshToken } = req.cookies;
+  const { username } = req.body;
+  if (!refreshToken) return res.status(401).send('Unauthorized');
  
-//   // 验证 Refresh Token 哈希值
-//   const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-//   const isValid = await redis.exists(tokenHash);
-//   if (!isValid) return res.status(401).send('Invalid Refresh Token');
+  // 验证 Refresh Token 哈希值
+  const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+  const isValid = await redis.exists(tokenHash);
+  if (!isValid) return res.status(401).send('Invalid Refresh Token');
  
-//   // 签发新 Token（同时使旧 Refresh Token 失效）
-//   const newAccessToken = jwt.sign({ username }, PRIVATE_KEY, { expiresIn: '15m' });
-//   const newRefreshToken = jwt.sign({}, PRIVATE_KEY, { expiresIn: '7d' });
+  // 签发新 Token（同时使旧 Refresh Token 失效）
+  const newAccessToken = jwt.sign({ username }, PRIVATE_KEY, { expiresIn: '15m' });
+  const newRefreshToken = jwt.sign({}, PRIVATE_KEY, { expiresIn: '7d' });
  
-//   // 更新 Redis 中的哈希值
-//   const newTokenHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
-//   await redis.del(tokenHash); // 删除旧哈希
-//   await redis.setEx(newTokenHash, 7 * 24 * 60 * 60, 'valid'); // 存储新哈希
+  // 更新 Redis 中的哈希值
+  const newTokenHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
+  await redis.del(tokenHash); // 删除旧哈希
+  await redis.setEx(newTokenHash, 7 * 24 * 60 * 60, 'valid'); // 存储新哈希
  
-//   // 返回新 Token
-//   res.cookie('refreshToken', newRefreshToken, { httpOnly: true, secure: true });
-//   res.json({ accessToken: newAccessToken });
-// });
+  // 返回新 Token
+  res.cookie('refreshToken', newRefreshToken, { httpOnly: true, secure: true });
+  res.json({ accessToken: newAccessToken });
+});
 /* 注册接口 */
 router.post('/register', async(req, res, next) => {
   let {username,password,head_img,nickname} = req.body
