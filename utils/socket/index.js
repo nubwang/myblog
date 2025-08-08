@@ -1,6 +1,6 @@
 const socketIo = require('socket.io');
 // const Redis = require('ioredis');
-const Redis = require('../../db/redis');
+const { getRedisClient } = require('../../db/redis');
 const { REDIS_CONFIG, PRIVATE_KEY } = require('../constant');
 const SocketAuth = require('./auth');
 const SocketConnectionManager = require('./connection');
@@ -10,8 +10,9 @@ const SocketHistoryManager = require('./history');
 class SocketService {
   constructor() {
     this.io = null;
-    // this.redis = new Redis(REDIS_CONFIG); // Redis 客户端
-    this.connectionManager = new SocketConnectionManager(Redis);
+    // 初始化连接管理器和历史消息管理器
+    let redis = getRedisClient();
+    this.connectionManager = new SocketConnectionManager(redis);
     this.historyManager = new SocketHistoryManager(); // MySQL 历史消息
   }
 
@@ -42,6 +43,7 @@ class SocketService {
       messageHandler.bindEvents(socket);
 
       socket.on('disconnect', () => {
+        console.log("000000000000000")
         this.connectionManager.removeSocket(socket.id);
       });
     });

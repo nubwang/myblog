@@ -25,17 +25,16 @@ router.post('/add',async(req,res,next) => {
   } 
 })
 // 接受好友请求
-router.post('/:id/accept', async (req, res,next) => {
-  const { id } = req.params;
-
+router.post('/accept', async (req, res,next) => {
+  const { friendId, userId } = req.body;
+  console.log(friendId,'userId');
   try {
-    const result = await querySql( 'UPDATE friendships SET status = "accepted" WHERE id = ?', [id] );
+    const result = await querySql( 'UPDATE friendships SET status = "accepted" WHERE user_id = ? AND friend_id = ?', [userId,friendId] );
     console.log(result,'resultresultresultresult')
     if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Friend request not found' });
+      return res.status(200).json({ message: 'Friend request not found' });
     }
-
-    res.json({ message: 'Friend request accepted successfully' });
+    res.json({ message: 'Friend request accepted successfully',code:200 });
   } catch (error) {
     console.error('Error accepting friend request:', error);
     res.status(500).json({ message: error.sqlMessage });
@@ -44,20 +43,20 @@ router.post('/:id/accept', async (req, res,next) => {
 });
 
 // // 拒绝好友请求
-router.post('/:id/reject', async (req, res,next) => {
-  const { id } = req.params;
+router.post('/reject', async (req, res,next) => {
+  const { friendId,userId } = req.body;
 
   try {
     const [result] = await querySql(
-      'UPDATE friendships SET status = "rejected" WHERE id = ?',
-      [id]
+      'UPDATE friendships SET status = "rejected" WHERE user_id = ? AND friend_id = ?',
+      [userId,friendId]
     );
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Friend request not found' });
+      return res.status(200).json({ message: 'Friend request not found' });
     }
 
-    res.json({ message: 'Friend request rejected successfully' });
+    res.json({ message: 'Friend request rejected successfully',code:200 });
   } catch (error) {
     console.error('Error rejecting friend request:', error);
     res.status(500).json({ message: 'Failed to reject friend request' });
@@ -71,7 +70,7 @@ router.get('/:userId', async (req, res,next) => {
 
   try {
     const [rows] = await querySql( `SELECT u.id, u.username, u.head_img FROM users u JOIN friendships f ON (u.id = f.friend_id AND f.user_id = ? AND f.status = 'accepted') UNION SELECT u.id, u.username, u.head_img FROM users u JOIN friendships f ON (u.id = f.user_id AND f.friend_id = ? AND f.status = 'accepted')`, [userId, userId] );
-
+    console.log(rows,'rows')
     res.json(rows);
   } catch (error) {
     console.error('Error fetching friends:', error);

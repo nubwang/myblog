@@ -10,10 +10,10 @@ var http = require('http');
 const SocketService = require('../utils/socket');
 const cluster = require('cluster');  
 const numCPUs = require('os').cpus().length; 
-const redis = require('../db/redis');
+const { getRedisClient } = require('../db/redis');
 (async () => {
   try {
-    await redis.connect();
+    await getRedisClient().connect();
     console.log('Redis 连接成功');
   } catch (err) {
     console.error('Redis 连接失败:', err);

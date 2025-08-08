@@ -1,21 +1,21 @@
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
+const createError = require('http-errors');
+const express = require('express');
+const path = require('path');
+const cookieParser = require('cookie-parser');
+const logger = require('morgan');
 const cors = require('cors')
 const expressJWT = require('express-jwt')
 const {PRIVATE_KEY} = require('./utils/constant')
 // process.env.PORT="10892"; //addFriend
-var artRouter = require('./routes/article');
-var usersRouter = require('./routes/users');
-var commentRouter = require('./routes/comment');
-var uploadCOS = require('./routes/uploadCOS');
-// var getA = require('./routes/getA');
-var friends = require('./routes/friends');
+const artRouter = require('./routes/article');
+const usersRouter = require('./routes/users');
+const commentRouter = require('./routes/comment');
+const uploadCOS = require('./routes/uploadCOS');
+// const getA = require('./routes/getA');
+const friends = require('./routes/friends');
 
 
-var app = express();
+const app = express();
 console.debug(process.platform,'env')
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
