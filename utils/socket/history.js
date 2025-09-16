@@ -1,4 +1,4 @@
-const querySql = require('../../db/index')
+const { querySql, transaction, pool  } = require('../../db/index')
 const { MYSQL_CONFIG } = require('../constant');
 
 class SocketHistoryManager {

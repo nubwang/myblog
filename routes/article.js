@@ -1,6 +1,6 @@
 var express = require('express');
 var router = express.Router();
-const querySql = require('../db/index')
+const { querySql, transaction, pool  } = require('../db/index')
 //新增中药列表接口
 router.post("/add",async(req,res,next)=>{
   let data = req.body;

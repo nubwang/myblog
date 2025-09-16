@@ -1,6 +1,6 @@
 var express = require('express');
 var router = express.Router();
-const querySql = require('../db/index')
+const { querySql, transaction, pool  } = require('../db/index')
 
 
 //发表评论接口

@@ -1,6 +1,6 @@
 var express = require('express');
 var router = express.Router();
-const querySql = require('../db/index')
+const { querySql, transaction, pool  } = require('../db/index')
 router.get('/test', (req, res) => {
   res.send({code:401,msg:'测试token过期接口'})
 });
