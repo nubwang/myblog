@@ -46,7 +46,6 @@ router.post('/register', async (req, res, next) => {
       res.send({ code: -1, msg: '该账号已注册' });
     }
   } catch (e) {
-    console.log(e);
     next(e);
   }
 });
@@ -69,7 +68,6 @@ router.post('/login', async (req, res, next) => {
       }
     }
   } catch (e) {
-    console.log(e);
     next(e);
   }
 });
@@ -82,7 +80,6 @@ router.get('/info_self', async (req, res, next) => {
     let userinfo = await querySql('select id,username,nickname,head_img from users where id = ?', [id]);
     res.send({ code: 200, msg: '成功', data: userinfo[0] });
   } catch (e) {
-    console.log(e);
     next(e);
   }
 });
@@ -94,7 +91,6 @@ router.get('/info_other', async (req, res, next) => {
     let userinfo = await querySql('select id,username,nickname,head_img from users where id = ?', [id]);
     res.send({ code: 200, msg: '成功', data: userinfo.length ? userinfo[0] : null });
   } catch (e) {
-    console.log(e);
     next(e);
   }
 });
@@ -114,7 +110,6 @@ router.post('/updateUser', async (req, res, next) => {
     let result = await querySql('update users set head_img = ?, nickname = ? where username = ?', [head_img, nickname, username]);
     res.send({ code: 200, msg: '更新成功', data: null });
   } catch (e) {
-    console.log(e);
     next(e);
   }
 });

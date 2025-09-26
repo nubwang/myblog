@@ -1,3 +1,4 @@
+// message.js
 const { getRedisClient } = require('../../db/redis');
 const { querySql, transaction, pool  } = require('../../db/index');
 const ChatService = require('./chatService'); // 全量引入
@@ -63,12 +64,11 @@ class SocketMessageHandler {
     });
 
     // 创建新私聊会话 
-    socket.on('createChatSession', async ({ userId, peerType, peerId}) => {
-      console.log(userId, peerType, peerId,'userId, targetIduserId, targetIduserId, targetIduserId, targetId')
+    socket.on('createChatSession', async ({ userId, peerId}) => {
       try {
-        const conversationId = await ChatService.createPrivateConversation(userId, peerType, peerId);
-        if (conversationId) {
-          this.io.to(socket.id).emit('chatSessionCreated', { code: 200, conversationId });
+        const convId = await ChatService.createPrivateConversation(userId, peerId);
+        if (convId) {
+          this.io.to(socket.id).emit('chatSessionCreated', { code: 200, data: { conversation_id: convId } });
         } else {
           this.io.to(socket.id).emit('notice', { code: 500, message: '创建会话失败' });
         }
@@ -95,24 +95,46 @@ class SocketMessageHandler {
 
     // 发送消息
     socket.on('sendMessage', async ({ conversation_id, sender_id, receiver_type, receiver_id, content_type, content}) => {
-      console.log(socket.id,'socket.id111111')
+      console.log('当前命名空间:', socket.nsp.name);
       try {
-        const userSocketId = await this.redis.hGet('socket:socket', String(receiver_id));
-        const userSocketId2 = await this.redis.hGet('socket:socket', String(sender_id));
-        console.log(userSocketId,userSocketId2,receiver_id,sender_id, 'userSocketIduserSocketIduserSocketIduserSocketId')
+        // 1. 验证双方socket ID
+        const [senderSocketId, receiverSocketId] = await Promise.all([
+          this.redis.hGet('socket:socket', String(sender_id)),
+          this.redis.hGet('socket:socket', String(receiver_id))
+        ]);
+    
+        console.log('Socket ID映射:', { sender_id, senderSocketId, receiver_id, receiverSocketId });
+    
+        // 2. 发送消息到数据库
         const messageId = await ChatService.sendMessage(conversation_id, sender_id, receiver_type, receiver_id, content_type, content);
-        if (messageId) {
-          this.io.to(userSocketId2).emit('newMessage', {
-            code: 200,
-            data: { conversation_id, sender_id, receiver_type, receiver_id, content_type, content, messageId }
-          });
-          this.io.to(userSocketId).emit('newMessage', {
-            code: 200,
-            data: { conversation_id, sender_id, receiver_type, receiver_id, content_type, content, messageId }
-          });
+        if (!messageId) throw new Error('消息保存失败');
+    
+        // 3. 构建消息数据
+        const messageData = {
+          code: 200,
+          data: { conversation_id, sender_id, receiver_type, receiver_id, content_type, content, messageId }
+        };
+    
+        // 4. 发送给接收方（如果在线）
+        if (receiverSocketId) {
+          const sockets = await this.io.fetchSockets();
+          console.log('活跃的接收者sockets:', sockets.map(s => s.id));
+          
+          if (sockets.length > 0) {
+            this.io.to(receiverSocketId).emit('newMessage', messageData);
+            console.log('已发送给接收者:', receiver_id);
+          } else {
+            console.log('接收者socket已断开但Redis未更新:', receiver_id,receiverSocketId);
+          }
         }
+    
+        // 5. 发送给发送方（回显）
+        if (senderSocketId && senderSocketId !== receiverSocketId) {
+          this.io.to(senderSocketId).emit('newMessage', messageData);
+        }
+    
       } catch (error) {
-        console.error('sendMessage error:', error);
+        console.error('消息发送全过程错误:', error);
         this.io.to(socket.id).emit('notice', { code: 500, message: '消息发送失败' });
       }
     });
@@ -120,12 +142,9 @@ class SocketMessageHandler {
     // 获取会话消息
     socket.on('getConversationMessages', async ({ conversationId, pageSize = 50, page = 0 }) => {
       try {
-        console.log(conversationId, pageSize, page,'conversationId')
         const messages = await ChatService.getConversationMessages(conversationId, pageSize, page);
-        console.log(messages,'messagesmessagesmessagesmessagesmessages')
         this.io.to(socket.id).emit('conversationMessages', { code: 200, conversationId, messages });
       } catch (error) {
-        console.error('getConversationMessages error:', error);
         this.io.to(socket.id).emit('notice', { code: 500, message: '获取消息失败' });
       }
     });
@@ -142,12 +161,10 @@ class SocketMessageHandler {
     });
     // 获取会话列表
     socket.on('getConversationList', async ({ userId }) => {
-      console.log(userId,'getConversationListuserId----------1111111111')
       try {
         const userSocketId = await this.redis.hGet('socket:socket', String(userId));
         const list = await ChatService.getUserConversations(userId);
         this.io.to(userSocketId).emit('ConversationList', { code: 200, data: list });
-        console.log(list,userSocketId,'listlistlistlistlistlistlist-----222222222222')
       } catch (error) {
         console.error('getConversationMembers error:', error);
         this.io.to(socket.id).emit('notice', { code: 500, message: '获取成员失败' });

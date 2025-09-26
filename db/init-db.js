@@ -1,5 +1,5 @@
-const querySql = require('./index');
-const { pool } = require('./index'); // 导入连接池
+// const querySql = require('./index');
+const { pool,querySql } = require('./index'); // 导入连接池
 
 async function initializeDatabase() {
   try {
@@ -24,19 +24,29 @@ async function initializeDatabase() {
           user_id BIGINT NOT NULL COMMENT '用户ID',
           peer_type ENUM('user', 'group') NOT NULL COMMENT '对方类型(用户/群组)',
           peer_id BIGINT NOT NULL COMMENT '对方ID(用户ID或群组ID)',
-          last_msg_id BIGINT COMMENT '最后一条消息ID',
           last_msg_content VARCHAR(255) COMMENT '最后一条消息摘要',
           last_msg_time DATETIME COMMENT '最后一条消息时间',
-          unread_count INT DEFAULT 0 COMMENT '未读消息数',
           is_top TINYINT(1) DEFAULT 0 COMMENT '是否置顶',
-          is_mute TINYINT(1) DEFAULT 0 COMMENT '是否免打扰',
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
           UNIQUE KEY uk_user_peer (user_id, peer_type, peer_id),
-          CREATE INDEX idx_private_conv ON conversations(peer_id, user_id) WHERE peer_type = 'user'
+          INDEX idx_private_conv (peer_id, user_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话表';
 
+    `);
+
+    await querySql(`
+      CREATE TABLE IF NOT EXISTS conversation_users (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        conversation_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL,
+        unread_count INT DEFAULT 0 COMMENT '未读消息数',
+        last_read_msg_id BIGINT COMMENT '最后已读消息ID',
+        is_muted BOOLEAN DEFAULT FALSE COMMENT '是否免打扰',
+        UNIQUE KEY uk_conv_user (conversation_id, user_id),
+        FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
     await querySql(`

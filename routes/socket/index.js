@@ -4,11 +4,9 @@ const notificationHandler = require('./notification');
 module.exports = (io) => {
   // 主命名空间
   io.on('connection', (socket) => {
-    console.log('New client connected:', socket.handshake.auth.userId,socket.id);
 
     // 基础事件
     socket.on('disconnect', () => {
-      console.log('Client disconnected:', socket.id);
     });
 
     // 加载各功能模块

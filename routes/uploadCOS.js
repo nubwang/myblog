@@ -9,7 +9,6 @@ const upload = multer({ storage: storage });
 router.post("/upload", upload.single('file'),async(req,res,next)=>{
     // SECRETID 和 SECRETKEY 请登录 https://console.cloud.tencent.com/cam/capi 进行查看和管理
     const file = req.file;
-    console.log(file,'filefilefilefilefile')
     if (!file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -21,7 +20,6 @@ router.post("/upload", upload.single('file'),async(req,res,next)=>{
         };
         const cos = await new COS(config);
         cos.getService(function (err, data) {
-            console.log(data && data.Buckets,'Buckets');
         });
         let params = {
             Bucket: 'herbs-1302047761', /* 必须 */
@@ -36,11 +34,9 @@ router.post("/upload", upload.single('file'),async(req,res,next)=>{
                 console.error('Upload to COS failed:', err);
                 return res.status(500).json({ error: 'Upload failed' });
             }
-            console.log(err || data);
             res.send({code:200,msg:'图片上传成功！',data:{imageUrl: `https://wangzhenjie.cn/${params.Key}`,data:data}})
         });
       }catch(e){
-        console.log(e)
         next(e)
       } 
 })

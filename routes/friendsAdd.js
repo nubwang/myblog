@@ -3,7 +3,6 @@ var router = express.Router();
 const pool = require('../db/index')
 router.post('/add',async(req,res,next) => {
   const { userId, friendId } = req.body;
-  console.log(userId, friendId,'userId, friendId')
   try {
     const [result] = await pool.query( 'INSERT INTO friendships (user_id, friend_id) VALUES (?, ?)', [userId, friendId] );
     res.status(200).json({ message: 'Friend request sent successfully', id: result.insertId });
@@ -16,7 +15,6 @@ router.post('/add',async(req,res,next) => {
 // 添加好友请求
 // router.post('/add', async (req, res, next) => {
 //   const { userId, friendId } = req.body;
-//   console.log(userId, friendId,'userId, friendId')
 //   try {
 //     const [result] = await pool.query(
 //       'INSERT INTO friendships (user_id, friend_id) VALUES (?, ?)',

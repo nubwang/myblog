@@ -1,3 +1,4 @@
+//chatService.js
 const { querySql, transaction, pool  } = require('../../db/index');
 
 class ChatService {
@@ -19,45 +20,39 @@ class ChatService {
   }
 
   // ========== 会话相关 ==========
-  static async createPrivateConversation(userId, peerType, peerId) {
-    // 动态构建查询条件：当peerType为'user'时自动检查双向会话
-    const queryConditions = `
-      (user_id = ? AND peer_type = ? AND peer_id = ?)
-      ${peerType === 'user' ? 'OR (user_id = ? AND peer_type = "user" AND peer_id = ?)' : ''}
-    `;
-    // 参数数组：基础参数 + 双向检查时的反向参数
-    const params = [userId, peerType, peerId];
-    if (peerType === 'user') {
-      params.push(peerId, userId);  // 修正反向查询参数顺序
-    }
-    
-    // 执行合并查询
-    let conversations = await querySql(
-      `SELECT conversation_id, user_id, peer_id 
-      FROM conversations 
-      WHERE ${queryConditions}`,
-      params
-    );
-
-    if (conversations.length > 0) {
-      // 更新会话状态（无论哪个方向存在都更新）
-      await querySql(
-        `UPDATE conversations 
-        SET updated_at = CURRENT_TIMESTAMP, unread_count = 0
-        WHERE conversation_id = ?`,
-        [conversations[0].conversation_id]
+  static async createPrivateConversation(userId, peerId) {
+    return await transaction(async (connection) => {
+      // 检查是否存在共享会话
+      const [existing] = await connection.query(
+        `SELECT conversation_id FROM conversations 
+         WHERE (user_id = ? AND peer_id = ?) OR (user_id = ? AND peer_id = ?)
+         AND peer_type = 'user'`,
+        [userId, peerId, peerId, userId]
       );
-      return conversations[0];
-    }
-
-    // 创建新会话逻辑（保持原有创建逻辑）
-    const newConvId = await querySql(
-      `INSERT INTO conversations 
-      (user_id, peer_type, peer_id, created_at, updated_at)
-      VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      [userId, peerType, peerId]
-    );
-    return { conversation_id: newConvId, user_id: userId, peer_id: peerId };
+ 
+      if (existing.length > 0) {
+        return existing[0].conversation_id;
+      }
+ 
+      // 创建会话
+      const [conv] = await connection.query(
+        `INSERT INTO conversations 
+         (user_id, peer_type, peer_id, created_at, updated_at)
+         VALUES (?, 'user', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [userId, peerId]
+      );
+      const convId = conv.insertId;
+ 
+      // 初始化双方会话状态
+      await connection.query(
+        `INSERT INTO conversation_users 
+         (conversation_id, user_id, unread_count, last_read_msg_id)
+         VALUES (?, ?, 0, NULL), (?, ?, 0, NULL)`,
+        [convId, userId, convId, peerId]
+      );
+ 
+      return convId;
+    });
   }
 
   static async createGroupConversation(creatorId, name, userIds, avatar = null) {
@@ -90,70 +85,91 @@ class ChatService {
   // ========== 消息相关 ==========
   static async sendMessage(conversation_id, sender_id, receiver_type, receiver_id, content_type, content) {
     return await transaction(async (connection) => {
-      // 1. 验证发送者权限（群组场景）
+      // 1. 验证发送者权限（修正表名及字段逻辑）
       if (receiver_type === 'group') {
         const [members] = await connection.query(
-          'SELECT 1 FROM conversation_members WHERE conversation_id = ? AND user_id = ?',
-          [conversation_id, sender_id]
+          `SELECT role FROM group_members 
+          WHERE group_id = ? AND user_id = ?`,
+          [receiver_id, sender_id]
         );
-        if (!members.length) {
-          throw new Error('发送者不在群组中');
-        }
+        if (!members.length) throw new Error('发送者不在群组中');
+        if (members[0].role === 'banned') throw new Error('被禁言用户无法发送消息'); // 新增权限校验
       }
-  
-      // 2. 插入消息记录
+
+      // 2. 插入消息记录（新增状态同步）
       const [msgResult] = await connection.query(
         `INSERT INTO messages 
-        (conversation_id, sender_id, receiver_type, receiver_id, content_type, content)
-        VALUES (?, ?, ?, ?, ?, ?)`,
-        [conversation_id, sender_id, receiver_type, receiver_id, content_type, content]
+        (conversation_id, sender_id, receiver_type, receiver_id, 
+          content_type, content, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [conversation_id, sender_id, receiver_type, receiver_id, 
+        content_type, content, 'sending']
       );
       const messageId = msgResult.insertId;
-  
-      // 3. 更新发送方会话记录
+
+      // 3. 更新发送方会话元数据
       await connection.query(
-        `UPDATE conversations SET
-        last_msg_id = ?,
-        last_msg_content = ?,
-        last_msg_time = CURRENT_TIMESTAMP,
-        updated_at = CURRENT_TIMESTAMP
+        `UPDATE conversations 
+        SET last_msg_content = ?,
+            last_msg_time = NOW(),
+            updated_at = NOW()
         WHERE conversation_id = ?`,
-        [messageId, content, conversation_id]
+        [content, conversation_id]
       );
-  
-      // 4. 处理接收方更新（优化后的批量操作）
+
+      // 4. 更新接收方状态（核心修正）
       if (receiver_type === 'user') {
-        // 单聊场景
+        // 单聊场景：更新接收方未读计数
         await connection.query(
-          `INSERT INTO conversations 
-          (user_id, peer_type, peer_id, last_msg_id, last_msg_content, unread_count)
-          VALUES (?, 'user', ?, ?, ?, 1)
-          ON DUPLICATE KEY UPDATE
-          last_msg_id = VALUES(last_msg_id),
-          last_msg_content = VALUES(last_msg_content),
-          unread_count = unread_count + 1,
-          updated_at = CURRENT_TIMESTAMP`,
-          [receiver_id, sender_id, messageId, content]
+          `INSERT INTO conversation_users 
+          (conversation_id, user_id, unread_count)
+          VALUES (?, ?, 1)
+          ON DUPLICATE KEY UPDATE 
+            unread_count = unread_count + 1,
+            last_read_msg_id = CASE 
+                                WHEN last_read_msg_id < ? THEN ? 
+                                ELSE last_read_msg_id 
+                                END`,
+          [conversation_id, receiver_id, messageId, messageId]
         );
       } else if (receiver_type === 'group') {
-        // 群聊场景（批量更新优化）
+        // 群聊场景：批量更新成员状态
         await connection.query(
-          `INSERT INTO conversations 
-          (user_id, peer_type, peer_id, last_msg_id, last_msg_content, unread_count)
-          SELECT cm.user_id, 'group', ?, ?, ?, 1
-          FROM conversation_members cm
-          WHERE cm.conversation_id = ? AND cm.user_id != ?
-          ON DUPLICATE KEY UPDATE
-          last_msg_id = VALUES(last_msg_id),
-          last_msg_content = VALUES(last_msg_content),
-          unread_count = unread_count + 1,
-          updated_at = CURRENT_TIMESTAMP`,
-          [receiver_id, messageId, content, conversation_id, sender_id]
+          `UPDATE conversation_users cu
+          JOIN group_members gm ON cu.user_id = gm.user_id
+          SET cu.unread_count = cu.unread_count + 1,
+              cu.last_read_msg_id = CASE 
+                                  WHEN cu.last_read_msg_id < ? THEN ? 
+                                  ELSE cu.last_read_msg_id 
+                                  END
+          WHERE gm.group_id = ? 
+            AND gm.user_id != ?
+            AND cu.conversation_id = ?`,
+          [messageId, messageId, receiver_id, sender_id, conversation_id]
         );
       }
-  
+
+      // 5. 同步消息状态（新增服务层逻辑）
+      await connection.query(
+        `UPDATE messages 
+        SET status = 'sent' 
+        WHERE msg_id = ?`,
+        [messageId]
+      );
+
       return messageId;
     });
+  }
+
+  // 标记消息已读
+  static async markAsRead(userId, conversationId, lastMsgId) {
+    await querySql(
+      `UPDATE conversation_users 
+       SET unread_count = 0,
+           last_read_msg_id = ?
+       WHERE conversation_id = ? AND user_id = ?`,
+      [lastMsgId, conversationId, userId]
+    );
   }
 
   static async getConversationMessages(conversationId, pageSize = 50, page = 0) {

@@ -1,3 +1,4 @@
+// connection.js
 class SocketConnectionManager {
   constructor(redis) {
     this.redis = redis;
@@ -9,7 +10,6 @@ class SocketConnectionManager {
    */
   async addSocket(socket) {
     const { userId, id: socketId } = socket;
-    console.log(userId, socketId, 'userId, socketId');
 
     // 存储 userId → socketId 的关系（使用 SET 存储多个 socketId）
     // await this.redis.sAdd(`user:${userId}:sockets`, socketId);
@@ -28,15 +28,19 @@ class SocketConnectionManager {
    * @param {string} socketId
    */
   async removeSocket(socketId) {
-    console.log("11111111111111111111", socketId);
     // 从 socket:user 哈希中获取 userId
     const userId = await this.redis.hGet('socket:user', socketId);
     if (userId) {
+      console.log('Removing socket:', socketId, 'for user:', userId);
       // 移除 user:${userId}:sockets 集合中的 socketId
       // await this.redis.sRem(`user:${userId}:sockets`, socketId);
 
       // 移除 socket:user 哈希中的 socketId
       await this.redis.hDel('socket:user', socketId); 
+      await this.redis.hDel('socket:socket', userId+"");
+      //以下打印this.redis里面是否已经删除
+      const remainingSockets = await this.redis.sMembers(`user:${userId}:sockets`);
+      console.log('Remaining sockets for user', userId, ':', remainingSockets);
     }
   }
 

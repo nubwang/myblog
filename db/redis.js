@@ -1,4 +1,5 @@
-const { createClient } = require('redis');
+const Redis = require('ioredis');
+const { createAdapter } = require('@socket.io/redis-adapter');
 
 class RedisClient {
   /**
@@ -6,40 +7,101 @@ class RedisClient {
    * @param {Object} options Redis 连接选项
    * @param {string} [options.url='redis://localhost:6379'] Redis 连接 URL
    * @param {string} [options.password] Redis 密码
-   * @param {number} [options.database=0] 数据库索引
+   * @param {number} [options.db=0] 数据库索引
    */
   constructor(options = {}) {
     const defaultOptions = {
-      url: 'redis://localhost:6379'
+      url: 'redis://localhost:6379',
+      db: 0
     };
-
+    
+    // 合并配置
     this.options = { ...defaultOptions, ...options };
-    this.client = createClient(this.options);
-
-    // 错误处理
-    this.client.on('error', (err) => {
-      console.error('Redis Client Error:', err);
-      this.handleError(err);
-    });
-
+    
+    // 初始化客户端
+    this.client = this._createClient(this.options);
+    this.subClient = null; // 用于发布/订阅的客户端
+    
     // 连接状态
     this.isConnected = false;
+    this._initEventListeners();
+  }
+
+  /**
+   * 创建 Redis 客户端实例
+   * @private
+   */
+  _createClient(options) {
+    const client = new Redis(options);
+    
+    // 统一处理客户端错误
+    client.on('error', (err) => this.handleError(err));
+    
+    return client;
+  }
+
+  /**
+   * 初始化事件监听器
+   * @private
+   */
+  _initEventListeners() {
+    this.client.on('connect', () => {
+      this.isConnected = true;
+      console.log('Redis connected');
+    });
+    
+    this.client.on('reconnecting', () => {
+      console.log('Redis reconnecting...');
+    });
+    
+    this.client.on('end', () => {
+      this.isConnected = false;
+      console.log('Redis connection closed');
+    });
+    
+    this.client.on('error', (err) => {
+      console.error('Redis connection error:', err.message);
+    });
   }
 
   /**
    * 连接到 Redis
+   * @returns {Promise<boolean>}
    */
   async connect() {
-    try {
-      await this.client.connect();
-      this.isConnected = true;
-      console.log('Connected to Redis');
-      return true;
-    } catch (err) {
-      console.error('Failed to connect to Redis:', err);
-      this.handleError(err);
-      return false;
+    // ioredis 会自动连接，这里只是等待连接完成
+    if (this.isConnected) return true;
+    
+    return new Promise((resolve, reject) => {
+      const checkConnection = () => {
+        if (this.isConnected) return resolve(true);
+        setTimeout(checkConnection, 50);
+      };
+      
+      // 设置超时
+      const timeout = setTimeout(() => {
+        reject(new Error('Redis connection timeout'));
+      }, 5000);
+      
+      checkConnection();
+      
+      // 清除超时
+      this.client.once('connect', () => {
+        clearTimeout(timeout);
+        resolve(true);
+      });
+    });
+  }
+
+  /**
+   * 创建 Redis 适配器（用于 Socket.IO）
+   * @returns {Object} Redis 适配器
+   */
+  createAdapter() {
+    if (!this.subClient) {
+      this.subClient = this.client.duplicate();
     }
+    return createAdapter(this.client, this.subClient);
   }
 
   /**
@@ -47,6 +109,13 @@ class RedisClient {
    */
   async disconnect() {
     try {
+      // 关闭订阅客户端
+      if (this.subClient) {
+        await this.subClient.quit();
+        this.subClient = null;
+      }
+      
+      // 关闭主客户端
       await this.client.quit();
       this.isConnected = false;
       console.log('Disconnected from Redis');
@@ -63,7 +132,6 @@ class RedisClient {
    * @param {Error} err 错误对象
    */
   handleError(err) {
-    // 默认只是打印错误，可以重写此方法实现自定义错误处理
     console.error('Redis Error:', err.message);
   }
 
@@ -76,6 +144,8 @@ class RedisClient {
    * @param {Object} [options] 选项
    * @param {number} [options.EX] 过期时间（秒）
    * @param {number} [options.PX] 过期时间（毫秒）
+   * @param {boolean} [options.NX] 仅当键不存在时设置
+   * @param {boolean} [options.XX] 仅当键存在时设置
    */
   async set(key, value, options = {}) {
     try {
@@ -164,9 +234,9 @@ class RedisClient {
   async hSet(key, field, value) {
     try {
       if (typeof field === 'object') {
-        return await this.client.hSet(key, field);
+        return await this.client.hset(key, field);
       }
-      return await this.client.hSet(key, field, value);
+      return await this.client.hset(key, field, value);
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -180,7 +250,7 @@ class RedisClient {
    */
   async hGet(key, field) {
     try {
-      return await this.client.hGet(key, field);
+      return await this.client.hget(key, field);
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -193,7 +263,7 @@ class RedisClient {
    */
   async hGetAll(key) {
     try {
-      return await this.client.hGetAll(key);
+      return await this.client.hgetall(key);
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -207,7 +277,7 @@ class RedisClient {
    */
   async hDel(key, ...fields) {
     try {
-      return await this.client.hDel(key, fields);
+      return await this.client.hdel(key, fields);
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -223,7 +293,7 @@ class RedisClient {
    */
   async lPush(key, ...elements) {
     try {
-      return await this.client.lPush(key, elements);
+      return await this.client.lpush(key, ...elements);
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -237,7 +307,7 @@ class RedisClient {
    */
   async rPush(key, ...elements) {
     try {
-      return await this.client.rPush(key, elements);
+      return await this.client.rpush(key, ...elements);
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -250,7 +320,7 @@ class RedisClient {
    */
   async lPop(key) {
     try {
-      return await this.client.lPop(key);
+      return await this.client.lpop(key);
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -263,7 +333,7 @@ class RedisClient {
    */
   async rPop(key) {
     try {
-      return await this.client.rPop(key);
+      return await this.client.rpop(key);
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -278,7 +348,7 @@ class RedisClient {
    */
   async lRange(key, start, end) {
     try {
-      return await this.client.lRange(key, start, end);
+      return await this.client.lrange(key, start, end);
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -294,7 +364,7 @@ class RedisClient {
    */
   async sAdd(key, ...members) {
     try {
-      return await this.client.sAdd(key, members);
+      return await this.client.sadd(key, ...members);
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -307,7 +377,7 @@ class RedisClient {
    */
   async sMembers(key) {
     try {
-      return await this.client.sMembers(key);
+      return await this.client.smembers(key);
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -321,7 +391,7 @@ class RedisClient {
    */
   async sIsMember(key, member) {
     try {
-      return await this.client.sIsMember(key, member);
+      return await this.client.sismember(key, member);
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -335,7 +405,7 @@ class RedisClient {
    */
   async sRem(key, ...members) {
     try {
-      return await this.client.sRem(key, members);
+      return await this.client.srem(key, ...members);
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -348,19 +418,30 @@ class RedisClient {
    * 订阅频道
    * @param {string|string[]} channels 频道或频道数组
    * @param {Function} callback 消息回调
-   * @returns {Promise<void>}
+   * @returns {Redis} 订阅客户端实例
    */
-  async subscribe(channels, callback) {
-    const subscriber = this.client.duplicate();
-    await subscriber.connect();
-    
-    if (Array.isArray(channels)) {
-      await subscriber.subscribe(channels, callback);
-    } else {
-      await subscriber.subscribe(channels, callback);
+  subscribe(channels, callback) {
+    if (!this.subClient) {
+      this.subClient = this.client.duplicate();
     }
     
-    return subscriber;
+    if (Array.isArray(channels)) {
+      return this.subClient.subscribe(channels, callback);
+    }
+    return this.subClient.subscribe(channels, callback);
+  }
+
+  /**
+   * 取消订阅
+   * @param {string|string[]} [channels] 频道或频道数组（不指定则取消所有订阅）
+   */
+  unsubscribe(channels) {
+    if (this.subClient) {
+      if (channels) {
+        return this.subClient.unsubscribe(channels);
+      }
+      return this.subClient.unsubscribe();
+    }
   }
 
   /**
@@ -370,9 +451,7 @@ class RedisClient {
    */
   async publish(channel, message) {
     try {
-      const publisher = this.client.duplicate();
-      await publisher.connect();
-      return await publisher.publish(channel, message);
+      return await this.client.publish(channel, message);
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -384,13 +463,12 @@ class RedisClient {
   /**
    * 执行 Lua 脚本
    * @param {string} script Lua 脚本
-   * @param {Object} options 选项
-   * @param {string[]} [options.keys] 键数组
-   * @param {string[]} [options.arguments] 参数数组
+   * @param {number} keysCount 键数量
+   * @param {...string} args 参数
    */
-  async eval(script, options = {}) {
+  async eval(script, keysCount, ...args) {
     try {
-      return await this.client.eval(script, options);
+      return await this.client.eval(script, keysCount, ...args);
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -412,7 +490,7 @@ class RedisClient {
    * @param {Function} pipelineFn 管道函数
    */
   async pipeline(pipelineFn) {
-    const pipeline = this.client.multi();
+    const pipeline = this.client.pipeline();
     await pipelineFn(pipeline);
     return await pipeline.exec();
   }
@@ -448,18 +526,28 @@ class RedisClient {
    * 获取分布式锁
    * @param {string} lockKey 锁键
    * @param {number} [timeout=10000] 超时时间（毫秒）
+   * @param {number} [retryDelay=200] 重试延迟（毫秒）
    */
-  async acquireLock(lockKey, timeout = 10000) {
-    try {
-      const result = await this.client.set(lockKey, 'locked', {
-        NX: true,
-        PX: timeout
-      });
-      return result === 'OK';
-    } catch (err) {
-      this.handleError(err);
-      throw err;
+  async acquireLock(lockKey, timeout = 10000, retryDelay = 200) {
+    const endTime = Date.now() + timeout;
+    
+    while (Date.now() < endTime) {
+      try {
+        const result = await this.client.set(lockKey, 'locked', {
+          NX: true,
+          PX: timeout
+        });
+        
+        if (result === 'OK') return true;
+        
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      } catch (err) {
+        this.handleError(err);
+        throw err;
+      }
     }
+    
+    return false;
   }
 
   /**
@@ -468,7 +556,16 @@ class RedisClient {
    */
   async releaseLock(lockKey) {
     try {
-      return await this.del(lockKey);
+      // 使用 Lua 脚本确保只有锁的持有者才能释放锁
+      const script = `
+        if redis.call("get", KEYS[1]) == "locked" then
+          return redis.call("del", KEYS[1])
+        else
+          return 0
+        end
+      `;
+      const result = await this.client.eval(script, 1, lockKey);
+      return result === 1;
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -477,23 +574,26 @@ class RedisClient {
 
   /**
    * 速率限制器
-   * @param {string} userId 用户ID
+   * @param {string} key 限流键
    * @param {number} [limit=100] 限制次数
    * @param {number} [windowMs=60000] 时间窗口（毫秒）
    */
-  async isAllowed(userId, limit = 100, windowMs = 60000) {
+  async isAllowed(key, limit = 100, windowMs = 60000) {
     try {
-      const key = `rate_limit:${userId}`;
       const now = Date.now();
+      const windowStart = now - windowMs;
       
+      // 使用事务确保原子性
       const multi = this.client.multi();
-      multi.lPush(key, now);
-      multi.lTrim(key, 0, limit - 1);
+      multi.zremrangebyscore(key, 0, windowStart);
+      multi.zadd(key, now, now);
+      multi.zcard(key);
       multi.expire(key, windowMs / 1000);
-      await multi.exec();
       
-      const current = await this.client.lLen(key);
-      return current <= limit;
+      const results = await multi.exec();
+      const currentCount = results[2][1]; // 获取 zcard 的结果
+      
+      return currentCount <= limit;
     } catch (err) {
       this.handleError(err);
       throw err;
@@ -501,7 +601,7 @@ class RedisClient {
   }
 }
 
-// 导出单例或创建实例的函数
+// 单例模式
 let redisInstance;
 
 /**

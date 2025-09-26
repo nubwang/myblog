@@ -1,4 +1,4 @@
-// 评审时请使用中文解答和建议
+// auth.js
 const jwt = require('jsonwebtoken');
 const { PRIVATE_KEY } = require('../constant');
 
@@ -10,7 +10,6 @@ class SocketAuth {
    */
   static verifyToken(socket, next) {
     const token = socket.handshake.auth.token || socket.handshake.query.token;
-    // console.log(socket,'token')
     if (!token) {
       return next(new Error('Authentication error: Token missing'));
     }
@@ -23,9 +22,7 @@ class SocketAuth {
       next();
     } catch (err) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('Authentication error:', err.message);
       } else {
-        console.log('Authentication error occurred');
       }
       next(new Error(JSON.stringify({code: 401, msg: 'token验证失败'})));
     }
