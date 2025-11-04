@@ -5,7 +5,6 @@ const { querySql, transaction, pool  } = require('../db/index')
 router.post("/add",async(req,res,next)=>{
   let data = req.body;
   try {
-    console.log(data,'datadatadatadatadata')
     if(!(data.name&&data.seedling&&data.mature&&data.partUsed&&data.FinishedHerbs&&data.ProtectPlants&&data.RiskWarning&&data.identify&&data.processingMethod&&data.AliasFunction&&data.DistributionCharacteristics&&data.PriceRange&&data.prescriptcs)){
       res.send({code:0,msg:'带*是必填项，请填写',data:null})
     }else{
@@ -13,7 +12,6 @@ router.post("/add",async(req,res,next)=>{
       res.send({code:200,msg:'新增成功',data:null})
     }
   }catch(e){
-    console.log(e,'err--------11111')
     if(e.errno == 1062){
       res.send({code:e.errno,msg: "这个植物药材已经上传过了"})
     }else{

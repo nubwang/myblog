@@ -13,6 +13,7 @@ class SocketAuth {
     if (!token) {
       return next(new Error('Authentication error: Token missing'));
     }
+    console.log(socket.id, "socket");
     try {
       const decoded = jwt.verify(token, PRIVATE_KEY);
       if (!decoded || !decoded.id) {

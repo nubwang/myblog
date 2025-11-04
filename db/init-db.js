@@ -14,7 +14,9 @@ async function initializeDatabase() {
         head_img VARCHAR(255),
         status ENUM('online', 'offline') DEFAULT 'offline',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_username (username), -- 已有UNIQUE，但显式索引提升查询效率
+        INDEX idx_email (email)       -- 已有UNIQUE，同上
       )
     `);
 
@@ -27,11 +29,14 @@ async function initializeDatabase() {
           last_msg_content VARCHAR(255) COMMENT '最后一条消息摘要',
           last_msg_time DATETIME COMMENT '最后一条消息时间',
           is_top TINYINT(1) DEFAULT 0 COMMENT '是否置顶',
+
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
           UNIQUE KEY uk_user_peer (user_id, peer_type, peer_id),
-          INDEX idx_private_conv (peer_id, user_id)
+          INDEX idx_private_conv (peer_id, user_id),
+          INDEX idx_last_msg_time (last_msg_time), -- 会话列表排序
+          INDEX idx_user_peer (user_id, peer_type, peer_id) -- 已有UNIQUE，但显式索引确保高效
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话表';
 
     `);
@@ -44,8 +49,12 @@ async function initializeDatabase() {
         unread_count INT DEFAULT 0 COMMENT '未读消息数',
         last_read_msg_id BIGINT COMMENT '最后已读消息ID',
         is_muted BOOLEAN DEFAULT FALSE COMMENT '是否免打扰',
+        is_active BOOLEAN DEFAULT FALSE COMMENT '用户是否当前激活此会话',
+        is_visible TINYINT(1) DEFAULT 1 COMMENT '是否在会话列表显示(0-不显示,1-显示)',
         UNIQUE KEY uk_conv_user (conversation_id, user_id),
-        FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id)
+        FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id),
+        INDEX idx_user_conv (user_id, conversation_id), -- 快速查询用户会话
+        INDEX idx_is_active (is_active),               -- 激活会话查询
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
@@ -54,11 +63,13 @@ async function initializeDatabase() {
           group_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '群组ID',
           group_name VARCHAR(100) NOT NULL COMMENT '群名称',
           creator_id BIGINT NOT NULL COMMENT '创建者ID',
-          avatar_url VARCHAR(255) COMMENT '群头像URL',
+          avatar_url JSON COMMENT '群头像URL',
           announcement VARCHAR(500) COMMENT '群公告',
           max_members INT DEFAULT 500 COMMENT '最大成员数',
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+          INDEX idx_creator (creator_id), -- 创建者查询群组
+          INDEX idx_group_name (group_name) -- 群名称搜索
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群组表';
     `);
 
@@ -73,7 +84,10 @@ async function initializeDatabase() {
           last_read_msg_id BIGINT COMMENT '最后阅读消息ID',
           FOREIGN KEY (group_id) REFERENCES pc_groups(group_id) ON DELETE CASCADE,
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-          UNIQUE KEY uk_group_user (group_id, user_id)
+          UNIQUE KEY uk_group_user (group_id, user_id),
+          INDEX idx_group_id (group_id),
+          INDEX idx_group_user (group_id, user_id), -- 已有UNIQUE，但显式索引
+          INDEX idx_user_role (user_id, role)     -- 用户角色查询
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群组成员表';
     `);
 
@@ -97,7 +111,11 @@ async function initializeDatabase() {
           -- 索引
           INDEX idx_receiver (receiver_type, receiver_id),
           INDEX idx_sender_time (sender_id, timestamp),
-          INDEX idx_conversation_time (conversation_id, timestamp)
+          INDEX idx_conversation_time (conversation_id, timestamp),
+          INDEX idx_conv_time (conversation_id, timestamp); -- 已有，但显式优化
+          INDEX idx_receiver (receiver_type, receiver_id);    -- 已有，但显式优化
+          INDEX idx_sender (sender_id, timestamp),           -- 已有，但显式优化
+          INDEX idx_status (status)                         -- 消息状态查询
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消息表';
     `);
 

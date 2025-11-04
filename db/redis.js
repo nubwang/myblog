@@ -12,7 +12,7 @@ class RedisClient {
   constructor(options = {}) {
     const defaultOptions = {
       url: 'redis://localhost:6379',
-      db: 0
+      db: 0,
     };
     
     // 合并配置
@@ -135,6 +135,24 @@ class RedisClient {
     console.error('Redis Error:', err.message);
   }
 
+  /**
+   * 执行 SCAN 命令
+   * @param {number} cursor 游标
+   * @param {Object} options 配置
+   * @param {string} [options.match] 匹配模式
+   * @param {number} [options.count] 每次扫描数量
+   */
+  async scan(cursor, options = {}) {
+    try {
+      const { match, count = 100 } = options;
+      const args = [cursor, 'MATCH', match || '*', 'COUNT', count];
+      return await this.client.scan(...args);
+    } catch (err) {
+      this.handleError(err);
+      throw err;
+    }
+  }
+
   // ==================== 基础操作 ====================
 
   /**
@@ -231,6 +249,19 @@ class RedisClient {
    * @param {Object|string} field 字段名或字段对象
    * @param {string} [value] 值（当field是字符串时使用）
    */
+
+  async hmset(key, field, value) {
+    try {
+      if (typeof field === 'object') {
+        return await this.client.hset(key, field);
+      }
+      return await this.client.hset(key, field, value);
+    } catch (err) {
+      this.handleError(err);
+      throw err;
+    }
+  }
+  
   async hSet(key, field, value) {
     try {
       if (typeof field === 'object') {

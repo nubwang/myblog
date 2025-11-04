@@ -59,7 +59,7 @@ router.post('/login', async (req, res, next) => {
       res.send({ code: -1, msg: '该账号不存在' });
     } else {
       password = md5(`${password}${PWD_SALT}`);
-      let result = await querySql('select * from users where username = ? and password = ?', [username, password]);
+      let result = await querySql('select id, username, nickname, email, avatar, head_img, status from users where username = ? and password = ?', [username, password]);
       if (!result || result.length === 0) {
         res.send({ code: -1, msg: '账号或者密码不正确' });
       } else {
@@ -77,7 +77,7 @@ router.get('/info_self', async (req, res, next) => {
   // 建议用 req.user.id，如果用了 JWT 中间件
   let id = req.user && req.user.id ? req.user.id : req.body.id;
   try {
-    let userinfo = await querySql('select id,username,nickname,head_img from users where id = ?', [id]);
+    let userinfo = await querySql('select avatar, nickname, email from users where id = ?', [id]);
     res.send({ code: 200, msg: '成功', data: userinfo[0] });
   } catch (e) {
     next(e);
@@ -97,18 +97,73 @@ router.get('/info_other', async (req, res, next) => {
 
 // 头像上传接口
 router.post('/upload', upload.single('head_img'), async (req, res, next) => {
-  let imgPath = req.file.path.split('public')[1];
-  let imgUrl = 'http://127.0.0.1:3000' + imgPath;
-  res.send({ code: 200, msg: '上传成功', data: imgUrl });
+  const imgUrl = req.body;
+  let { id } = req.user;
+  try {
+    let result = await querySql('update users set avatar = ?, head_img = ? where id = ?', [imgUrl, imgUrl, id]);
+    res.send({ code: 200, msg: '上传成功', data: imgUrl });
+  } catch (e) {
+    next(e);
+  }
 });
 
 // 用户信息更新接口
 router.post('/updateUser', async (req, res, next) => {
-  let { nickname, head_img } = req.body;
-  let { username } = req.user;
+  const { id } = req.user;
+  const { nickname, email, password } = req.body;
+  let updateFields = [];
+  let values = [];
+
   try {
-    let result = await querySql('update users set head_img = ?, nickname = ? where username = ?', [head_img, nickname, username]);
-    res.send({ code: 200, msg: '更新成功', data: null });
+    // 动态构建更新字段和参数
+    if (nickname !== undefined) {
+      updateFields.push('nickname = ?');
+      values.push(nickname);
+    }
+
+    if (email !== undefined) {
+      updateFields.push('email = ?');
+      values.push(email);
+    }
+
+    if (password !== undefined) {
+      // 密码加密处理
+      const hashedPassword = md5(`${password}${PWD_SALT}`);
+      updateFields.push('password = ?');
+      values.push(hashedPassword);
+    }
+
+    // 验证至少有一个有效更新字段
+    if (updateFields.length === 0) {
+      return res.status(400).json({
+        code: 400,
+        msg: '没有提供有效的更新数据',
+        data: null
+      });
+    }
+    console.log(updateFields, values);
+    // 构建完整SQL
+    const sql = `UPDATE users SET ${updateFields.join(', ')} 
+                 WHERE id = ?`;
+    values.push(id); // 添加用户ID到参数末尾
+
+    // 执行更新
+    const result = await querySql(sql, values);
+
+    // 验证更新结果
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        code: 404,
+        msg: '用户不存在或更新失败',
+        data: null
+      });
+    }
+
+    res.json({
+      code: 200,
+      msg: '更新成功',
+      data: null
+    });
   } catch (e) {
     next(e);
   }

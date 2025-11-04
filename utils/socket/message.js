@@ -17,27 +17,31 @@ class SocketMessageHandler {
    */
   bindEvents(socket) {
     const { userId } = socket;
-
     // 初始化信息
     socket.on('init', async ({ userId }) => {
-      const userSocketId = await this.redis.hGet('socket:socket', String(userId));
+      await ChatService.deactivateAllConversations(userId);
+    });
+    
+    // 初始化好友信息
+    socket.on('friendInit', async ({ userId }) => {
+      console.log(this.io.in(String(46)).allSockets(), "this.io.in(String(46)).allSockets()")
       const friendPending = await querySql(
-        `SELECT u.id, u.username, u.head_img, f.notes 
+        `SELECT u.id, u.username,u.nickname, u.head_img, f.notes 
          FROM users u 
          JOIN friendships f ON (u.id = f.user_id AND f.friend_id = ? AND f.status = 'pending')`, 
         [userId]
       );
       const friendAccepted = await querySql(
-        `SELECT u.id, u.username, u.head_img 
+        `SELECT u.id, u.username,u.nickname, u.head_img 
          FROM users u 
          JOIN friendships f ON (u.id = f.friend_id AND f.user_id = ? AND f.status = 'accepted')
          UNION 
-         SELECT u.id, u.username, u.head_img 
+         SELECT u.id, u.username,u.nickname, u.head_img 
          FROM users u 
          JOIN friendships f ON (u.id = f.user_id AND f.friend_id = ? AND f.status = 'accepted')`, 
         [userId, userId]
       );
-      this.io.to(userSocketId).emit('init', { code: 200, data: { friendPending, friendAccepted } });
+      this.io.to(socket.id).emit('friendInit', { code: 200, data: { friendPending, friendAccepted } });
     });
 
     // 好友请求
@@ -78,15 +82,23 @@ class SocketMessageHandler {
       }
     });
 
-    // 创建群聊
-    socket.on('createGroup', async ({ creatorId, name, userIds, avatar = null }) => {
+    socket.on("forceJoinRoom", ({ roomId, conversationId }) => {
       try {
-        const conversationId = await ChatService.createGroupConversation(creatorId, name, userIds, avatar);
-        if (conversationId) {
-          this.io.to(socket.id).emit('groupCreated', { code: 200, conversationId });
-        } else {
-          this.io.to(socket.id).emit('notice', { code: 500, message: '创建群聊失败' });
-        }
+        console.log(`Joined room ${roomId}`);
+        socket.join(String(roomId)); // 加入目标房间
+        this.io.to(socket.id).emit('groupCreated', { code: 200, conversationId });
+      } catch (error) {
+        console.error('forceJoinRoom error:', error);
+        this.io.to(socket.id).emit('notice', { code: 500, message: '加入房间异常' });
+      }
+    });
+
+    // 创建群聊
+    socket.on('createGroup', async ({ creatorId, groupName, memberIds, avatar }) => {
+      console.debug('创建群聊请求:', { creatorId, groupName, memberIds, socket:socket.id });
+      try {
+        const { groupId, conversationId } =  await ChatService.createGroupConversation(creatorId, groupName, memberIds, avatar, this.io);
+        await ChatService.createRoom(groupId, creatorId, groupName, memberIds, 500, avatar, this.io, conversationId); // 异步调用不等待结果
       } catch (error) {
         console.error('createGroup error:', error);
         this.io.to(socket.id).emit('notice', { code: 500, message: '创建群聊异常' });
@@ -94,50 +106,52 @@ class SocketMessageHandler {
     });
 
     // 发送消息
-    socket.on('sendMessage', async ({ conversation_id, sender_id, receiver_type, receiver_id, content_type, content}) => {
-      console.log('当前命名空间:', socket.nsp.name);
+    socket.on('sendMessage', async ({ conversation_id, sender_id, receiver_type, receiver_id, content_type, content,sender_avatar,sender_name }) => {
+      console.debug('消息发送请求:', { conversation_id, sender_id, receiver_type, receiver_id });
+      //socket.rooms
+      
       try {
-        // 1. 验证双方socket ID
-        const [senderSocketId, receiverSocketId] = await Promise.all([
-          this.redis.hGet('socket:socket', String(sender_id)),
-          this.redis.hGet('socket:socket', String(receiver_id))
-        ]);
-    
-        console.log('Socket ID映射:', { sender_id, senderSocketId, receiver_id, receiverSocketId });
-    
-        // 2. 发送消息到数据库
-        const messageId = await ChatService.sendMessage(conversation_id, sender_id, receiver_type, receiver_id, content_type, content);
-        if (!messageId) throw new Error('消息保存失败');
-    
-        // 3. 构建消息数据
+        // 公共消息处理逻辑
+        const messageId = await ChatService.sendMessage(
+          conversation_id, 
+          sender_id, 
+          receiver_type, 
+          receiver_id, 
+          content_type, 
+          content,
+        );
+        
+        if (!messageId) throw new Error('MESSAGE_SAVE_FAILURE');
+        
         const messageData = {
           code: 200,
-          data: { conversation_id, sender_id, receiver_type, receiver_id, content_type, content, messageId }
+          data: { conversation_id, sender_id, receiver_type, receiver_id, content_type, content, messageId,sender_name,sender_avatar },
         };
-    
-        // 4. 发送给接收方（如果在线）
-        if (receiverSocketId) {
-          const sockets = await this.io.fetchSockets();
-          console.log('活跃的接收者sockets:', sockets.map(s => s.id));
-          
-          if (sockets.length > 0) {
-            this.io.to(receiverSocketId).emit('newMessage', messageData);
-            console.log('已发送给接收者:', receiver_id);
-          } else {
-            console.log('接收者socket已断开但Redis未更新:', receiver_id,receiverSocketId);
-          }
+
+        // 根据接收方类型路由处理
+        if (receiver_type === "user") {
+          await ChatService.handleUserMessage(sender_id, receiver_id, messageData, this.io);
+        } else if (receiver_type === "group") {
+          await ChatService.handleGroupMessage(sender_id, receiver_id, messageData,this.io,socket);
+        } else {
+          throw new Error('INVALID_RECEIVER_TYPE');
         }
-    
-        // 5. 发送给发送方（回显）
-        if (senderSocketId && senderSocketId !== receiverSocketId) {
-          this.io.to(senderSocketId).emit('newMessage', messageData);
-        }
-    
+        
       } catch (error) {
-        console.error('消息发送全过程错误:', error);
-        this.io.to(socket.id).emit('notice', { code: 500, message: '消息发送失败' });
+        console.error('消息发送失败:', error.message);
+        const errorMap = {
+          'MESSAGE_SAVE_FAILURE': '消息保存失败',
+          'RECEIVER_OFFLINE': '接收方不在线',
+          'INVALID_RECEIVER_TYPE': '无效接收方类型'
+        };
+        
+        this.io.to(socket.id).emit('notice', {
+          code: 500,
+          message: errorMap[error.message] || '消息发送异常'
+        });
       }
     });
+    
 
     // 获取会话消息
     socket.on('getConversationMessages', async ({ conversationId, pageSize = 50, page = 0 }) => {
@@ -168,6 +182,64 @@ class SocketMessageHandler {
       } catch (error) {
         console.error('getConversationMembers error:', error);
         this.io.to(socket.id).emit('notice', { code: 500, message: '获取成员失败' });
+      }
+    });
+
+    // 加入房间
+    socket.on("join_room", async ({ roomId, userId }) => {
+      await joinRoom(roomId, userId);
+      socket.join(roomId);
+    });
+
+    // 离开房间
+    socket.on("leave_room", async ({ roomId, userId }) => {
+      await leaveRoom(roomId, userId);
+      socket.leave(roomId);
+    });
+
+    //获取群成员列表
+    socket.on("get_group_members", async ({ groupId }) => {
+      try {
+        const members = await ChatService.getGroupInformation(groupId);
+        this.io.to(socket.id).emit('groupMembers', { code: 200, groupInfo:members });
+      } catch (error) {
+        console.error('getGroupMembers error:', error);
+        this.io.to(socket.id).emit('notice', { code: 500, message: '获取群成员失败' });
+      }
+    });
+
+    //激活会话
+    socket.on("activate_conversation", async ({ conversationId, userId }) => {
+      console.log('激活会话请求参数:', { conversationId, userId });
+      try {
+        await ChatService.activateConversation(conversationId, userId);
+        this.io.to(socket.id).emit('conversationActivated', { code: 200, message: '会话已激活', data: { conversationId, userId } });
+      } catch (error) {
+        console.error('activateConversation error:', error);
+        this.io.to(socket.id).emit('notice', { code: 500, message: '激活会话失败' });
+      }
+    });
+
+    //获取单独conversations表的信息
+    socket.on("get_conversation_info", async ({ conversationId,userId }) => {
+      console.log('获取会话信息请求参数:', { conversationId ,userId});
+      try {
+        const conversationInfo = await ChatService.getUserConversationsOne(conversationId,userId);
+        this.io.to(socket.id).emit('conversationInfo', { code: 200, data: conversationInfo });
+      } catch (error) {
+        console.error('getConversationById error:', error);
+        this.io.to(socket.id).emit('notice', { code: 500, message: '获取会话信息失败' });
+      }
+    });
+
+    socket.on("get_conversation_info_all", async ({ conversationId,userId }) => {
+      console.log('获取会话信息请求参数:', { conversationId ,userId});
+      try {
+        const conversationInfo = await ChatService.getUserConversationsOne(conversationId, userId);
+        this.io.to(socket.id).emit('conversationInfo', { code: 200, data: conversationInfo });
+      } catch (error) {
+        console.error('getConversationById error:', error);
+        this.io.to(socket.id).emit('notice', { code: 500, message: '获取会话信息失败' });
       }
     });
 

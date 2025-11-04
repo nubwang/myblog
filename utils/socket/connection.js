@@ -31,7 +31,6 @@ class SocketConnectionManager {
     // 从 socket:user 哈希中获取 userId
     const userId = await this.redis.hGet('socket:user', socketId);
     if (userId) {
-      console.log('Removing socket:', socketId, 'for user:', userId);
       // 移除 user:${userId}:sockets 集合中的 socketId
       // await this.redis.sRem(`user:${userId}:sockets`, socketId);
 
@@ -40,7 +39,6 @@ class SocketConnectionManager {
       await this.redis.hDel('socket:socket', userId+"");
       //以下打印this.redis里面是否已经删除
       const remainingSockets = await this.redis.sMembers(`user:${userId}:sockets`);
-      console.log('Remaining sockets for user', userId, ':', remainingSockets);
     }
   }
 
