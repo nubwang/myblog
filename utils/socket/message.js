@@ -19,12 +19,13 @@ class SocketMessageHandler {
     const { userId } = socket;
     // 初始化信息
     socket.on('init', async ({ userId }) => {
+      console.log(userId,"initinitinitinitinitinitinitinit")
       await ChatService.deactivateAllConversations(userId);
     });
     
     // 初始化好友信息
     socket.on('friendInit', async ({ userId }) => {
-      console.log(this.io.in(String(46)).allSockets(), "this.io.in(String(46)).allSockets()")
+      // console.log(this.io.in(String(46)).allSockets(), "this.io.in(String(46)).allSockets()")
       const friendPending = await querySql(
         `SELECT u.id, u.username,u.nickname, u.head_img, f.notes 
          FROM users u 
@@ -84,7 +85,7 @@ class SocketMessageHandler {
 
     socket.on("forceJoinRoom", ({ roomId, conversationId }) => {
       try {
-        console.log(`Joined room ${roomId}`);
+        console.log(roomId, conversationId,socket.id,'roomId, conversationId')
         socket.join(String(roomId)); // 加入目标房间
         this.io.to(socket.id).emit('groupCreated', { code: 200, conversationId });
       } catch (error) {
@@ -99,6 +100,19 @@ class SocketMessageHandler {
       try {
         const { groupId, conversationId } =  await ChatService.createGroupConversation(creatorId, groupName, memberIds, avatar, this.io);
         await ChatService.createRoom(groupId, creatorId, groupName, memberIds, 500, avatar, this.io, conversationId); // 异步调用不等待结果
+        const newMemberIds = [creatorId, ...memberIds];
+        for (const userId of newMemberIds) {
+          const socketId = await ChatService.getSocketId(userId);
+          console.log('createRoom socketId:', socketId);
+          // 通过 Redis 适配器广播到所有进程
+          if(socketId){
+            console.log('createRoom joining socketId----------1111111223:', socketId);
+            const userSocketId = await this.redis.hGet('socket:socket', String(userId));
+            console.log('redis userSocketId----------1111111223:', userSocketId);
+            await this.io.to(socketId).socketsJoin(String(groupId));
+            await this.io.to(socketId).emit('groupCreated', { code: 200, conversationId });
+          }
+        }
       } catch (error) {
         console.error('createGroup error:', error);
         this.io.to(socket.id).emit('notice', { code: 500, message: '创建群聊异常' });
@@ -106,11 +120,12 @@ class SocketMessageHandler {
     });
 
     // 发送消息
-    socket.on('sendMessage', async ({ conversation_id, sender_id, receiver_type, receiver_id, content_type, content,sender_avatar,sender_name }) => {
-      console.debug('消息发送请求:', { conversation_id, sender_id, receiver_type, receiver_id });
-      //socket.rooms
-      
+    socket.on('sendMessage', async ({file, conversation_id, sender_id, receiver_type, receiver_id, content_type, content,sender_avatar,sender_name }) => {
+      console.debug('消息发送请求:', { conversation_id, sender_id, receiver_type, receiver_id,content_type, content,file });
       try {
+        if(content_type == "image"){
+          content = await ChatService.uploadImageToCOS(file,content);
+        } 
         // 公共消息处理逻辑
         const messageId = await ChatService.sendMessage(
           conversation_id, 
@@ -120,19 +135,14 @@ class SocketMessageHandler {
           content_type, 
           content,
         );
-        
+        console.log('消息保存成功，消息ID:', messageId);
         if (!messageId) throw new Error('MESSAGE_SAVE_FAILURE');
-        
-        const messageData = {
-          code: 200,
-          data: { conversation_id, sender_id, receiver_type, receiver_id, content_type, content, messageId,sender_name,sender_avatar },
-        };
 
         // 根据接收方类型路由处理
         if (receiver_type === "user") {
-          await ChatService.handleUserMessage(sender_id, receiver_id, messageData, this.io);
+          await ChatService.handleUserMessage(sender_id, receiver_id, messageId, this.io);
         } else if (receiver_type === "group") {
-          await ChatService.handleGroupMessage(sender_id, receiver_id, messageData,this.io,socket);
+          await ChatService.handleGroupMessage(sender_id, receiver_id, messageId,this.io,socket);
         } else {
           throw new Error('INVALID_RECEIVER_TYPE');
         }
@@ -210,7 +220,7 @@ class SocketMessageHandler {
 
     //激活会话
     socket.on("activate_conversation", async ({ conversationId, userId }) => {
-      console.log('激活会话请求参数:', { conversationId, userId });
+      // console.log('激活会话请求参数:', { conversationId, userId });
       try {
         await ChatService.activateConversation(conversationId, userId);
         this.io.to(socket.id).emit('conversationActivated', { code: 200, message: '会话已激活', data: { conversationId, userId } });
@@ -222,7 +232,7 @@ class SocketMessageHandler {
 
     //获取单独conversations表的信息
     socket.on("get_conversation_info", async ({ conversationId,userId }) => {
-      console.log('获取会话信息请求参数:', { conversationId ,userId});
+      // console.log('获取会话信息请求参数:', { conversationId ,userId});
       try {
         const conversationInfo = await ChatService.getUserConversationsOne(conversationId,userId);
         this.io.to(socket.id).emit('conversationInfo', { code: 200, data: conversationInfo });
@@ -233,7 +243,7 @@ class SocketMessageHandler {
     });
 
     socket.on("get_conversation_info_all", async ({ conversationId,userId }) => {
-      console.log('获取会话信息请求参数:', { conversationId ,userId});
+      // console.log('获取会话信息请求参数:', { conversationId ,userId});
       try {
         const conversationInfo = await ChatService.getUserConversationsOne(conversationId, userId);
         this.io.to(socket.id).emit('conversationInfo', { code: 200, data: conversationInfo });

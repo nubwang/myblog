@@ -1,7 +1,5 @@
 var express = require('express');
 var router = express.Router();
-const fs = require('fs');
-const path = require('path');
 const COS = require('cos-nodejs-sdk-v5');
 const multer = require('multer');
 const { querySql } = require('../db/index');

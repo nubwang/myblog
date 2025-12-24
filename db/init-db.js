@@ -29,7 +29,6 @@ async function initializeDatabase() {
           last_msg_content VARCHAR(255) COMMENT '最后一条消息摘要',
           last_msg_time DATETIME COMMENT '最后一条消息时间',
           is_top TINYINT(1) DEFAULT 0 COMMENT '是否置顶',
-
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,

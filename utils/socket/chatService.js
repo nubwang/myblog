@@ -2,6 +2,8 @@
 const { querySql, transaction, pool  } = require('../../db/index');
 const { getRedisClient } = require('../../db/redis');
 const redis = getRedisClient();
+const COS = require('cos-nodejs-sdk-v5');
+require('dotenv').config();
 //给以下所有代码添加注释
 class ChatService {
   // ========== 用户相关 ==========
@@ -58,17 +60,7 @@ class ChatService {
   }
 
   static async createRoom(roomId, creatorId, groupName, memberIds, maxMembers = 500, avatar = null, io = null, conversationId = null) {
-    if (io) {
-      const newMemberIds = [creatorId, ...memberIds];
-      for (const userId of newMemberIds) {
-        const socketId = await this.getSocketId(userId);
-        console.log('createRoom socketId:', socketId);
-        // 通过 Redis 适配器广播到所有进程
-        if(socketId){
-          await io.to(socketId).emit("forceJoinRoom", { code: 200, roomId,conversationId });
-        }
-      }
-    }
+    
     // 存储房间基础信息
     await redis.hmset(`socket:room:${roomId}`, {
       roomId: roomId,
@@ -422,16 +414,27 @@ class ChatService {
   }
 
   // 用户消息处理
-  static async handleUserMessage(senderId, receiverId, messageData, io) {
+  static async handleUserMessage(senderId, receiverId, messageId, io) {
     // 批量获取socket映射（带缓存优化）
     const [senderSocketId, receiverSocketId] = await Promise.all([
       this.getSocketId(senderId),
       this.getSocketId(receiverId)
     ]);
+    const rows = await querySql(
+      `SELECT 
+         m.*,
+         u.nickname,
+         u.username AS sender_username,
+         u.avatar AS sender_avatar
+       FROM messages m
+       JOIN users u ON m.sender_id = u.id
+       WHERE m.msg_id = ?`,
+      [messageId]
+    );
   
     // 接收方在线校验
     if (receiverSocketId && await this.isSocketConnected(receiverSocketId, io)) {
-      io.to(receiverSocketId).emit('newMessage', messageData);
+      io.to(receiverSocketId).emit('newMessage', {code:200,data:rows[0]});
       console.debug(`用户消息送达: ${receiverId}`);
     } else {
       throw new Error('RECEIVER_OFFLINE');
@@ -439,13 +442,13 @@ class ChatService {
   
     // 发送方回显（排除自收自发场景）
     if (senderSocketId && senderSocketId !== receiverSocketId) {
-      io.to(senderSocketId).emit('newMessage', messageData);
+      io.to(senderSocketId).emit('newMessage', {code:200,data:rows[0]});
     }
   }
   
   // 群组消息处理
   // 修改后的群组消息处理函数
-static async handleGroupMessage(senderId, groupId, messageData, io,socket) {
+static async handleGroupMessage(senderId, groupId, messageId, io,socket) {
   const group = await this.findGroup(groupId);
   if (!group) throw new Error('GROUP_NOT_FOUND');
 
@@ -465,9 +468,21 @@ static async handleGroupMessage(senderId, groupId, messageData, io,socket) {
     result.status === 'fulfilled' && result.value.connected
   ).map(result => result.value.socketId);
   console.log(validSockets,'validSockets');
+  const rows = await querySql(
+    `SELECT 
+        m.*,
+        u.nickname,
+        u.username AS sender_username,
+        u.avatar AS sender_avatar
+      FROM messages m
+      JOIN users u ON m.sender_id = u.id
+      WHERE m.msg_id = ?`,
+    [messageId]
+  );
+  console.log(rows[0],'rows')
   // 发送消息给在线成员
   if (validSockets.length > 0) {
-    io.to(String(groupId)).emit('newMessage', messageData);
+    io.to(String(groupId)).emit('newMessage', {code:200,data:rows[0]});
   }
   
   // 发送方回显
@@ -583,17 +598,33 @@ static async handleGroupMessage(senderId, groupId, messageData, io,socket) {
       // 1. 取消用户所有会话的激活状态
       await connection.query(
         `UPDATE conversation_users 
-         SET is_active = FALSE 
-         WHERE user_id = ?`,
+        SET is_active = FALSE 
+        WHERE user_id = ?`,
         [userId]
       );
-  
-      // 2. 激活指定会话
+
+      // 2. 查询指定会话的最后一条消息ID
+      const [lastMsgResult] = await connection.query(
+        `SELECT msg_id 
+        FROM messages 
+        WHERE conversation_id = ? 
+        ORDER BY timestamp DESC 
+        LIMIT 1`,
+        [conversationId]
+      );
+
+      // 3. 提取最后消息ID（若无消息则为null）
+      const lastMsgId = lastMsgResult&&lastMsgResult.length > 0 ? lastMsgResult[0].msg_id : null;
+
+      // 4. 激活指定会话并更新最后已读消息ID
       await connection.query(
         `UPDATE conversation_users 
-         SET is_active = TRUE, unread_count = 0 
-         WHERE conversation_id = ? AND user_id = ?`,
-        [conversationId, userId]
+        SET 
+          is_active = TRUE, 
+          unread_count = 0,
+          last_read_msg_id = ?
+        WHERE conversation_id = ? AND user_id = ?`,
+        [lastMsgId, conversationId, userId]
       );
     });
   }
@@ -602,8 +633,8 @@ static async handleGroupMessage(senderId, groupId, messageData, io,socket) {
   static async deactivateAllConversations(userId) {
     return await querySql(
       `UPDATE conversation_users 
-       SET is_active = FALSE 
-       WHERE user_id = ?`,
+        SET is_active = FALSE 
+        WHERE user_id = ?`,
       [userId]
     );
   }
@@ -622,6 +653,33 @@ static async handleGroupMessage(senderId, groupId, messageData, io,socket) {
       [userId, conversationId]
     );
     return rows[0];
+  }
+
+  //图片上传到COS
+  static async uploadImageToCOS(file,originalname) {
+    console.log(process.env.SecretId,'process.env.COS_SECRET_ID');
+    const cos = new COS({
+      SecretId: process.env.SecretId,
+      SecretKey: process.env.SecretKey,
+    });
+
+    const params = {
+      Bucket: process.env.BUCKET_NAME,
+      Region: process.env.REGION,
+      Key: `message_${Date.now()}_${originalname}`,
+      Body: file,
+      ContentType: file.mimetype || 'application/octet-stream',
+    };
+
+    return new Promise((resolve, reject) => {
+      cos.putObject(params, (err, data) => {
+        if (err) {
+          return reject(err);
+        }
+        const url = `https://${params.Bucket}.cos.${params.Region}.myqcloud.com/${params.Key}`;
+        resolve(url);
+      });
+    });
   }
   
 }

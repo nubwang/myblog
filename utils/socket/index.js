@@ -43,6 +43,7 @@ class SocketService {
 
     this.io.on('connection',async (socket) => {
       // 恢复连接并加入房间
+      console.log("connection", socket.id);
       await this.restoreConnection(socket);
       messageHandler.bindEvents(socket);
 
@@ -51,6 +52,7 @@ class SocketService {
       });
 
       socket.on('disconnect', () => {
+        console.log("disconnect", socket.id);
         this.connectionManager.removeSocket(socket.id);
       });
     });
